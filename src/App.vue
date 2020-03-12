@@ -1,28 +1,51 @@
 <template>
-  <div id="app">
-    <img alt="Vue logo" src="./assets/logo.png" />
-    <HelloWorld msg="Welcome to Your Vue.js App" />
-  </div>
+    <div id="app">
+        <Terrain class="terrain-layout" ref="terrain"></Terrain>
+        <Control class="control-layout" :terrain="terrain"></Control>
+    </div>
 </template>
 
 <script>
-import HelloWorld from "./components/HelloWorld.vue";
-
+import Terrain from "./components/Terrain"
+import Control from "./components/Control"
 export default {
-  name: "app",
-  components: {
-    HelloWorld
-  }
-};
+    name: "app",
+    components: { Terrain, Control },
+    data() {
+        return { terrain: null }
+    },
+    mounted() {
+        this.terrain = this.$refs.terrain
+    }
+}
 </script>
 
 <style lang="less">
+* {
+    margin: 0;
+}
+html,
+body,
 #app {
-  font-family: "Avenir", Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
+    height: 100%;
+}
+#app {
+    position: relative;
+    display: flex;
+    font-family: "Avenir", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-align: center;
+    color: #2c3e50;
+    box-sizing: border-box;
+
+    .terrain-layout {
+        width: 100%;
+    }
+
+    .control-layout {
+        position: absolute;
+        right: 0;
+    }
 }
 </style>

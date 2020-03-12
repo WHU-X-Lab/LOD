@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Document</title>
+        <style>
+            .head {
+                height: 1000px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="head"></div>
+        <div id="app">111111111</div>
+        <script>
+            let app = document.getElementById("app")
+            window.onhashchange = e => {
+                app.innerHTML = e.newURL
+            }
+        </script>
+    </body>
+</html>
