@@ -1,21 +1,23 @@
 let data = require("./river.json")
 let [minX, minY, maxX, maxY] = [1000000, 1000000, -1000000, -1000000]
 
-const setData = d => (data = d)
+const setData = (d) => (data = d)
 
 const parseData = () =>
-    new Promise(resolve => {
+    new Promise((resolve) => {
         let result = []
         if (data.hasOwnProperty("features")) {
             /* GeoJSON To JSON */
-            data.features.map(feature => {
-                feature.geometry.coordinates.map(coord => {
-                    if (coord[0] < minX) minX = coord[0]
-                    if (coord[0] > maxX) maxX = coord[0]
-                    if (coord[1] < minY) minY = coord[1]
-                    if (coord[1] > maxY) maxY = coord[1]
-                    result.push(coord)
-                })
+            data.features.map((feature, index) => {
+                if (index === 10) {
+                    feature.geometry.coordinates.map((coord) => {
+                        if (coord[0] < minX) minX = coord[0]
+                        if (coord[0] > maxX) maxX = coord[0]
+                        if (coord[1] < minY) minY = coord[1]
+                        if (coord[1] > maxY) maxY = coord[1]
+                        result.push(coord)
+                    })
+                }
             })
             resolve(result)
         } else {
@@ -49,14 +51,14 @@ const parseData = () =>
 
 const getData = (d = null) => {
     if (d !== null) setData(d)
-    return new Promise(resolve => {
-        parseData().then(data => {
+    return new Promise((resolve) => {
+        parseData().then((data) => {
             resolve({
                 data,
                 minX,
                 minY,
                 maxX,
-                maxY
+                maxY,
             })
         })
     })

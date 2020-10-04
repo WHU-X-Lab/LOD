@@ -4,20 +4,22 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Document</title>
-        <style>
-            .head {
-                height: 1000px;
-            }
-        </style>
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+        <style></style>
     </head>
     <body>
-        <div class="head"></div>
-        <div id="app">111111111</div>
+        <div id="app">{{text}}</div>
         <script>
-            let app = document.getElementById("app")
-            window.onhashchange = e => {
-                app.innerHTML = e.newURL
-            }
+            let app = new Vue({
+                el: "#app",
+                data: {
+                    value: 1,
+                    text: "1",
+                },
+                mounted() {
+                    this.text = "mounted"
+                },
+            })
         </script>
     </body>
 </html>

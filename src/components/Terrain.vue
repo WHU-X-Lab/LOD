@@ -1,21 +1,28 @@
 <template>
   <div class="terrain-wrap">
-    <canvas class="terrain"></canvas>
+    <div class="tip">当前LOD层级{{ segments }}</div>
+    <div class="axis axis-left" v-show="showAxis"></div>
+    <div class="axis axis-right" v-show="showAxis"></div>
+    <canvas
+      class="terrain"
+      @click="onViewChange"
+      @contextmenu="onViewChange"
+      @wheel="onViewChange"
+    ></canvas>
   </div>
 </template>
 
 <script>
 import * as THREE from "three";
-import { mapState, mapMutations } from "vuex";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { mapState } from "vuex";
+import { MapControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { getData } from "../data";
-import { QuadTree } from "../view";
+import { QuadTree } from "../view/quadtree";
 
 export default {
   data() {
     return {
-      useWireFrame: false,
-      cameraDepth: 60,
+      cameraDepth: 1.2,
       clearColor: "#fff",
       terrainScale: 100, // Actual width
       scene: null,
@@ -23,142 +30,155 @@ export default {
       camera: null,
       renderer: null,
       controls: null,
+      frameGroup: null,
       geom: null,
       mat: null,
-      mesh: null
+      mesh: null,
+      arrayedLine: null
     };
   },
   mounted() {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
-      75,
+      60,
       window.innerWidth / window.innerHeight,
-      0.1,
-      this.terrainScale * 10
+      0.01,
+      this.terrainScale
     );
-    this.camera.position.y = -this.cameraDepth;
-    this.camera.position.z = this.cameraDepth;
-    this.canvas = document.getElementsByClassName("terrain")[0];
-    let { canvas } = this;
-    this.renderer = new THREE.WebGLRenderer({
-      canvas
+    this.camera.position.set(0, 2, 0);
+    this.resetRenderer();
+    this.controls = new MapControls(this.camera, this.renderer.domElement);
+    this.controls.screenSpacePanning = false;
+
+    // <DEBUG> wireframe
+    this.resetGroup();
+
+    // <Main>
+    this.material = new THREE.LineBasicMaterial({
+      color: 0x0000ff
     });
-    this.renderer.setClearColor(this.clearColor);
-    const pxRatio = Math.max(Math.floor(window.devicePixelRatio) || 1, 2);
-    this.canvas.width = this.canvas.clientWidth / pxRatio;
-    this.canvas.height = this.canvas.clientHeight / pxRatio;
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.geom = new THREE.BufferGeometry();
 
-    this.material = new THREE.MeshNormalMaterial({
-      wireframe: this.useWireFrame,
-      side: THREE.DoubleSide
+    this.renderer.setAnimationLoop(() => {
+      this.renderer.render(this.scene, this.camera);
     });
 
-    this.updateGeometry();
-    this.controls.update();
-    this.animate();
-
-    getData().then(this.initData, err => {
+    // init
+    getData().then(this.init, err => {
       throw err;
     });
   },
   watch: {
-    useWireframe(use) {
-      this.mesh.material.wireframe = use;
+    segments(rank) {
+      this.updateGeomByRank(rank);
     },
-    segments() {
-      // this.handleAttrChange();
-    },
-    heightPerScale() {
-      this.handleAttrChange();
-    },
-    geoData() {
-      this.handleAttrChange();
+    showFrame(show) {
+      if (show) {
+        this.scene.add(this.frameGroup);
+      } else {
+        this.scene.remove(this.frameGroup);
+      }
     }
   },
   computed: {
-    ...mapState(["useWireframe", "segments", "heightPerScale", "geoData"])
+    ...mapState(["segments", "showFrame", "showAxis"])
   },
   methods: {
-    ...mapMutations(["setGeoData"]),
-    handleAttrChange() {
-      this.updateGeometry();
-      this.mapData();
+    onViewChange() {
+      this.updateGeomByRank(this.segments);
     },
-    updateGeometry() {
-      const [widthSegments, heightSegments] = [this.segments, this.segments];
-      const [terrainWidth, terrainHeight] = [
-        this.terrainScale,
-        this.terrainScale
+    init({ data, minX, minY, maxX, maxY }) {
+      let points = [];
+      let direction = new THREE.Vector3();
+      data.map(coord => {
+        let mappedCoord = this.mapCoordType(coord, {
+          minX,
+          minY,
+          maxX,
+          maxY
+        });
+        direction.x = mappedCoord[0];
+        direction.y = mappedCoord[1];
+        direction.z = 0;
+        points.push(direction.x, direction.y, direction.z);
+      });
+      this.rankedLine = new QuadTree(points);
+      this.updateGeomByRank(this.segments);
+    },
+    resetRenderer() {
+      let canvas = document.getElementsByClassName("terrain")[0];
+      this.renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true
+      });
+      this.renderer.setClearColor(this.clearColor);
+      this.renderer.setPixelRatio(window.devicePixelRatio || 1);
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    },
+    resetGroup() {
+      this.scene.remove(this.frameGroup);
+      this.frameGroup = new THREE.Group();
+      this.scene.add(this.frameGroup);
+    },
+    drawBound(bound) {
+      let boundBuffer = [
+        bound[0],
+        0,
+        bound[1],
+        bound[0],
+        0,
+        bound[3],
+        bound[2],
+        0,
+        bound[3],
+        bound[2],
+        0,
+        bound[1],
+        bound[0],
+        0,
+        bound[1]
       ];
-      this.geom = new THREE.PlaneBufferGeometry(
-        terrainWidth,
-        terrainHeight,
-        widthSegments,
-        heightSegments
+      let geom = new THREE.BufferGeometry();
+      let mat = new THREE.LineBasicMaterial({ color: 0x000000 });
+      geom.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(boundBuffer, 3)
       );
-    },
-    initData({ data, minX, minY, maxX, maxY }) {
-      let { segments } = this;
-      let vertices = this.geom.attributes.position.array;
-      let width = segments + 1;
-      let nodes = [];
-      data.map(coord => {
-        let mappedCoord = this.mapCoordType(coord, {
-          minX,
-          minY,
-          maxX,
-          maxY
-        });
-        let height = coord[2] ? coord[2] : 1;
-
-        let index =
-          Math.floor(mappedCoord[0] * width) +
-          width * (Math.floor(width * mappedCoord[1]) - 1);
-
-        nodes.push(this.heightPerScale * this.terrainScale * height);
-      });
-      this.quadtree = new QuadTree(nodes);
-      this.mapData();
-    },
-    mapData() {
-      let { data, minX, minY, maxX, maxY } = this.geoData;
-      let { segments } = this;
-      let vertices = this.geom.attributes.position.array;
-      let scaleLength = segments + 1;
-      data.map(coord => {
-        let mappedCoord = this.mapCoordType(coord, {
-          minX,
-          minY,
-          maxX,
-          maxY
-        });
-        let height = coord[2] ? coord[2] : 1;
-
-        let index =
-          Math.floor(mappedCoord[0] * scaleLength) +
-          scaleLength * (Math.floor(scaleLength * mappedCoord[1]) - 1);
-
-        vertices[3 * index + 2] =
-          this.heightPerScale * this.terrainScale * height;
-      });
-
-      this.geom.computeVertexNormals();
-      this.scene.remove(this.mesh);
-      this.mesh = new THREE.Mesh(this.geom, this.material);
-      this.scene.add(this.mesh);
+      let mesh = new THREE.Line(geom, mat);
+      this.frameGroup.add(mesh);
     },
     mapCoordType(coord, { minX, minY, maxX, maxY }) {
       return [
-        (coord[0] - minX) / (maxX - minX),
-        1 - (coord[1] - minY) / (maxY - minY)
+        (coord[0] - minX) / (maxX - minX) - 0.5,
+        1 - (coord[1] - minY) / (maxY - minY) - 0.5
       ];
     },
-    animate() {
-      requestAnimationFrame(this.animate);
-      this.controls.update();
-      this.renderer.render(this.scene, this.camera);
+    updateGeomByRank(rank) {
+      console.log(this.camera.position)
+      this.resetGroup();
+      let points = null;
+      if (this.showFrame) {
+        points = this.rankedLine.traveseTreeByLevel(
+          rank,
+          this.drawBound,
+          this.camera.position
+        );
+      } else {
+        points = this.rankedLine.traveseTreeByLevel(
+          rank,
+          () => {},
+          this.camera.position
+        );
+      }
+
+      this.geom.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(points, 3)
+      );
+      if (!this.mesh) {
+        this.mesh = new THREE.Line(this.geom, this.material);
+        this.scene.add(this.mesh);
+      }
     }
   }
 };
@@ -166,6 +186,29 @@ export default {
 
 <style lang="less" scoped>
 .terrain-wrap {
+  position: relative;
+  .axis {
+    position: absolute;
+    margin-left: 50vw;
+    margin-top: 50vh;
+    width: 50px;
+    height: 50px;
+    pointer-events: none;
+  }
+  .axis-left {
+    border-left: 5px solid red;
+    transform: translate(-2.5px, -25px);
+  }
+  .axis-right {
+    border-top: 5px solid red;
+    transform: translate(-25px, -2.5px);
+  }
+  .tip {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
   .terrain {
     width: 100%;
     height: 100%;

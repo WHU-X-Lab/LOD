@@ -5,25 +5,25 @@ Vue.use(Vuex)
 
 export default new Vuex.Store({
     state: {
-        useWireframe: false,
-        segments: 100,
-        heightPerScale: 1 / 10,
-        geoData: null
+        antialias: true,
+        segments: 10,
+        showFrame: true,
+        showAxis: true,
     },
     mutations: {
-        setUseWireFrame(state, use) {
-            state.useWireframe = use
+        setAntialias(state, antialias) {
+            state.antialias = antialias
         },
         setSegments(state, segments) {
             state.segments = segments
         },
-        setHeightPerScale(state, hps) {
-            state.heightPerScale = hps
+        setShowFrame(state, showFrame) {
+            state.showFrame = showFrame
         },
-        setGeoData(state, geoData) {
-            state.geoData = geoData
-        }
+        setShowAxis(state, showAxis) {
+            state.showAxis = showAxis
+        },
     },
     actions: {},
-    modules: {}
+    modules: {},
 })

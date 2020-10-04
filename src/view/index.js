@@ -9,13 +9,15 @@ const emptyHandler = () => true
  *        4 childParts(top-left,top-right,bottom-left,bottom-right)
  *        segments
  *
- * *-----------------*
- * |   tl   |   tr   |
- * |        |        |
- * |--------*--------|
- * |   bl   |   br   |
- * |        |        |
- * *-----------------*
+ * *-------------------*
+ * |         |         |
+ * |   tl    |   tr    |
+ * |         |         |
+ * |---------*---------|
+ * |         |         |
+ * |   bl    |   br    |
+ * |         |         |
+ * *-------------------*
  * |<---segments---->|
  */
 
@@ -63,11 +65,11 @@ class Part {
         }
     }
     addNode(type, height) {
-        if (!(type in this.childNodeTypes)) return
+        if (!this.childNodeTypes.includes(type)) return
         this.childNodes[type] = height
     }
     addPart(type) {
-        if (!(type in this.childPartTypes)) return
+        if (!this.childPartTypes.includes(type)) return
         return (this.childParts[type] = new Part({
             type,
             segments: this.childSegments,
@@ -90,12 +92,8 @@ class Part {
 }
 
 export class QuadTree {
-    constructor({
-        nodes = [],
-        visibleFn = emptyHandler,
-        traversedHook = emptyHandler
-    }) {
-        Object.assign(this, { nodes, visibleFn, traversedHook })
+    constructor(nodes = [], visibleFn = emptyHandler) {
+        Object.assign(this, { nodes, visibleFn })
         this.rootSegments = Math.sqrt(nodes.length)
         if (!isOdd(this.rootSegments)) throw "Quadtree's length must be Odd"
 
@@ -144,18 +142,17 @@ export class QuadTree {
             }
         }
     }
-    traverse(part = this.root, fn = this.traverse) {
-        if (this.visibleFn(part.childNodes["center"])) {
+    traverse(part = this.root, fn = this.traverse, visFn = this.visibleFn) {
+        if (visFn(part.childNodes["center"])) {
             part.childPartTypes.map(partType => {
                 let childPart = part.childParts[partType]
                 if (childPart) {
-                    fn.call({}, childPart, fn)
+                    fn.call({}, childPart, fn, visFn)
                 }
             })
         } else {
             part.clear()
         }
-        this.traversedHook.call(this, { nodes: this.nodes })
     }
 }
 
