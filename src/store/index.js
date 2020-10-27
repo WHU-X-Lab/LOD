@@ -5,12 +5,16 @@ Vue.use(Vuex)
 
 export default new Vuex.Store({
     state: {
+        minViewDis: 1,
         antialias: true,
         segments: 10,
         showFrame: true,
-        showAxis: true,
+        showAxis: false,
     },
     mutations: {
+        setMinViewDis(state, minViewDis) {
+            state.minViewDis = minViewDis
+        },
         setAntialias(state, antialias) {
             state.antialias = antialias
         },

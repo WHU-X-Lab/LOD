@@ -1,7 +1,8 @@
 import * as THREE from "three"
+import { calDisByCamera } from "../util"
 
-const MIN_ATTACH_DISTANCE = 0.0001
-const MIN_VEC_DISTANCE = 1.2
+const MIN_ATTACH_DISTANCE = 0.001
+const MIN_VEC_DISTANCE = 0.2
 const childPartTypes = ["tl", "tr", "bl", "br"]
 
 class Node {
@@ -43,7 +44,7 @@ class Part {
         const midY = (this.bound[1] + this.bound[3]) / 2
         if (node.x <= midX && node.y <= midY) {
             return (
-                this.childParts["bl"] |
+                this.childParts["bl"] ||
                 this.createChildPart("bl", [
                     this.bound[0],
                     this.bound[1],
@@ -93,19 +94,49 @@ class Part {
             bound
         ))
     }
-    traverse(level, drawCb, viewPoint) {
-        console.log("traverse")
+    traverse(level, drawCb, camera) {
         return traverseSub.call(this, level)
 
         function isViewValid() {
             if (this.level <= 1) return true
-            let vec = viewPoint.clone().addScaledVector(this.center, -1)
-            let len = vec.length()
-            if (this.level === 0) console.log(len)
-            return len < MIN_VEC_DISTANCE
+            let maxDis = -Infinity
+            let childNodes = []
+            childPartTypes.map((childPartType) => {
+                if (this.childParts[childPartType]) {
+                    childNodes.concat(this.childParts[childPartType].nodes)
+                }
+            })
+            for (let i = 0; i < this.nodes.length - 1; i++) {
+                let x1 = this.nodes[i].x
+                let y1 = this.nodes[i].z
+                let x2 = this.nodes[i + 1].x
+                let y2 = this.nodes[i + 1].z
+                // 计算每个子节点到父节点的垂距在视觉上的最长投影距离
+                childNodes.map((childNode) => {
+                    let x0 = childNode.x
+                    let y0 = childNode.z
+                    let k =
+                        ((x0 - x1) * (x2 - x1) + (y0 - y1) * (y2 - y1)) /
+                        ((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
+                    let x = x1 + k * (x2 - x1)
+                    let y = y1 + k * (y2 - y1)
+                    let dis = calDisByCamera(x0, y0, x, y, camera)
+                    maxDis = Math.max(dis, maxDis)
+                })
+            }
+            return maxDis > MIN_VEC_DISTANCE
+            // return (
+            //     calDisByCamera(
+            //         this.bound[0],
+            //         this.bound[1],
+            //         this.bound[2],
+            //         this.bound[3],
+            //         camera
+            //     ) > MIN_VEC_DISTANCE
+            // )
         }
         function traverseSub(level) {
-            if (!isViewValid.call(this, viewPoint)) return []
+            if (!isViewValid.call(this, camera)) return []
             let res = this.nodes
 
             childPartTypes.map((type) => {

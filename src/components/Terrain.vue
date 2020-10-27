@@ -5,8 +5,7 @@
     <div class="axis axis-right" v-show="showAxis"></div>
     <canvas
       class="terrain"
-      @click="onViewChange"
-      @contextmenu="onViewChange"
+      @mouseup="onViewChange"
       @wheel="onViewChange"
     ></canvas>
   </div>
@@ -18,6 +17,8 @@ import { mapState } from "vuex";
 import { MapControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { getData } from "../data";
 import { QuadTree } from "../view/quadtree";
+
+const SPLIT_DIS = 0.001;
 
 export default {
   data() {
@@ -40,11 +41,12 @@ export default {
   mounted() {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
-      60,
+      45,
       window.innerWidth / window.innerHeight,
       0.01,
       this.terrainScale
     );
+    this.camera.lookAt({x:0, y:0,z:0})
     this.camera.position.set(0, 2, 0);
     this.resetRenderer();
     this.controls = new MapControls(this.camera, this.renderer.domElement);
@@ -90,18 +92,24 @@ export default {
     init({ data, minX, minY, maxX, maxY }) {
       let points = [];
       let direction = new THREE.Vector3();
-      data.map(coord => {
-        let mappedCoord = this.mapCoordType(coord, {
+      for (let i = 1; i < data.length; i++) {
+        const coord1 = this.mapCoordType(data[i - 1], {
           minX,
           minY,
           maxX,
           maxY
         });
-        direction.x = mappedCoord[0];
-        direction.y = mappedCoord[1];
+        const coord2 = this.mapCoordType(data[i], { minX, minY, maxX, maxY });
+        direction.x = coord2[0] - coord1[0];
+        direction.y = coord2[1] - coord1[1];
         direction.z = 0;
-        points.push(direction.x, direction.y, direction.z);
-      });
+        const repeatTimes = Math.round(direction.length() / SPLIT_DIS) || 1;
+        for (let j = 0; j < repeatTimes + 1; j++) {
+          let x = coord1[0] + (j * (coord2[0] - coord1[0])) / repeatTimes;
+          let y = coord1[1] + (j * (coord2[1] - coord1[1])) / repeatTimes;
+          points.push(x, y, 0);
+        }
+      }
       this.rankedLine = new QuadTree(points);
       this.updateGeomByRank(this.segments);
     },
@@ -154,14 +162,13 @@ export default {
       ];
     },
     updateGeomByRank(rank) {
-      console.log(this.camera.position)
       this.resetGroup();
       let points = null;
       if (this.showFrame) {
         points = this.rankedLine.traveseTreeByLevel(
           rank,
           this.drawBound,
-          this.camera.position
+          this.camera
         );
       } else {
         points = this.rankedLine.traveseTreeByLevel(

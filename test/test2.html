@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="https://cdn.bootcss.com/three.js/91/three.min.js"></script>
+        <script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+        <script src="./test.js"></script>
+        <title>Document</title>
+        <style>
+            .box {
+                position: fixed;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="box">box</div>
+        <script>
+            var scene = new THREE.Scene()
+            var camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            )
+
+            var renderer = new THREE.WebGLRenderer()
+            renderer.setSize(window.innerWidth, window.innerHeight)
+            document.body.appendChild(renderer.domElement)
+
+            var helper = new THREE.AxesHelper(50)
+            scene.add(helper)
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement)
+
+            var geometry = new THREE.BoxGeometry()
+            var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            var cube = new THREE.Mesh(geometry, material)
+            cube.position.x = 1
+            cube.position.y = 2
+            cube.position.z = 3
+            scene.add(cube)
+
+            camera.position.y = 10
+            function animate() {
+                requestAnimationFrame(animate)
+                renderer.render(scene, camera)
+                controls.update()
+                let halfWidth = window.innerWidth / 2
+                let halfHeight = window.innerHeight / 2
+
+                let vector1 = cube.position.clone().project(camera)
+                console.log(vector1)
+
+                $(".box").css({
+                    left: vector1.x * halfWidth + halfWidth,
+                    top: -vector1.y * halfHeight + halfHeight,
+                })
+            }
+            animate()
+
+            let vec = cube.position.clone()
+            console.log(vec.project(camera))
+        </script>
+    </body>
+</html>
