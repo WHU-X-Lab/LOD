@@ -18,7 +18,7 @@ import { MapControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { getData } from "../data";
 import { QuadTree } from "../view/quadtree";
 
-const SPLIT_DIS = 0.001;
+// const SPLIT_DIS = 0.001;
 
 export default {
   data() {
@@ -46,7 +46,7 @@ export default {
       0.01,
       this.terrainScale
     );
-    this.camera.lookAt({x:0, y:0,z:0})
+    this.camera.lookAt({ x: 0, y: 0, z: 0 });
     this.camera.position.set(0, 2, 0);
     this.resetRenderer();
     this.controls = new MapControls(this.camera, this.renderer.domElement);
@@ -91,25 +91,30 @@ export default {
     },
     init({ data, minX, minY, maxX, maxY }) {
       let points = [];
-      let direction = new THREE.Vector3();
-      for (let i = 1; i < data.length; i++) {
-        const coord1 = this.mapCoordType(data[i - 1], {
-          minX,
-          minY,
-          maxX,
-          maxY
-        });
-        const coord2 = this.mapCoordType(data[i], { minX, minY, maxX, maxY });
-        direction.x = coord2[0] - coord1[0];
-        direction.y = coord2[1] - coord1[1];
-        direction.z = 0;
-        const repeatTimes = Math.round(direction.length() / SPLIT_DIS) || 1;
-        for (let j = 0; j < repeatTimes + 1; j++) {
-          let x = coord1[0] + (j * (coord2[0] - coord1[0])) / repeatTimes;
-          let y = coord1[1] + (j * (coord2[1] - coord1[1])) / repeatTimes;
-          points.push(x, y, 0);
-        }
-      }
+      // let direction = new THREE.Vector3();
+      data.map(coord => {
+        coord = this.mapCoordType(coord, { minX, minY, maxX, maxY });
+        points.push(coord.x, coord.y, 0);
+      });
+      // for (let i = 1; i < data.length; i++) {
+      //   const coord1 = this.mapCoordType(data[i - 1], {
+      //     minX,
+      //     minY,
+      //     maxX,
+      //     maxY
+      //   });
+      //   const coord2 = this.mapCoordType(data[i], { minX, minY, maxX, maxY });
+      //   direction.x = coord2[0] - coord1[0];
+      //   direction.y = coord2[1] - coord1[1];
+      //   direction.z = 0;
+      //   poinis.push(direction.x, direction.y, 0)
+      //   // const repeatTimes = Math.round(direction.length() / SPLIT_DIS) || 1;
+      //   // for (let j = 0; j < repeatTimes + 1; j++) {
+      //   //   let x = coord1[0] + (j * (coord2[0] - coord1[0])) / repeatTimes;
+      //   //   let y = coord1[1] + (j * (coord2[1] - coord1[1])) / repeatTimes;
+      //   //   points.push(x, y, 0);
+      //   // }
+      // }
       this.rankedLine = new QuadTree(points);
       this.updateGeomByRank(this.segments);
     },
