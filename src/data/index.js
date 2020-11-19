@@ -1,5 +1,5 @@
 let data = require("./river.json")
-let [minX, minY, maxX, maxY] = [1000000, 1000000, -1000000, -1000000]
+let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
 
 const setData = (d) => (data = d)
 
@@ -11,11 +11,17 @@ const parseData = () =>
             data.features.map((feature, index) => {
                 if (index === 10) {
                     feature.geometry.coordinates.map((coord) => {
+                        // ;[
+                        //     [-1, 2],
+                        //     [1, 0.5],
+                        //     [0.5, -2],
+                        // ].map((coord) => {
                         if (coord[0] < minX) minX = coord[0]
                         if (coord[0] > maxX) maxX = coord[0]
                         if (coord[1] < minY) minY = coord[1]
                         if (coord[1] > maxY) maxY = coord[1]
                         result.push(coord)
+                        // })
                     })
                 }
             })

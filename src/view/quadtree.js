@@ -1,9 +1,11 @@
 import * as THREE from "three"
-import { calDisByCamera } from "../util"
-
-const MIN_ATTACH_DISTANCE = 0.001
-const MIN_VEC_DISTANCE = 0.2
-const childPartTypes = ["tl", "tr", "bl", "br"]
+import {
+    MIN_ATTACH_DISTANCE,
+    MIN_VEC_DISTANCE,
+    childPartTypes,
+    MAX_LEVEL,
+} from "../config"
+import { calDisInScreen } from "../util"
 
 class Node {
     constructor(x = 0, y = 0, z = 0, uuid = 0) {
@@ -30,7 +32,14 @@ class Part {
         }
     }
     addNode(node) {
-        this.nodes.push(node)
+        if (this.level > MAX_LEVEL) return
+        if (this.isNodeBelongPart(node)) {
+            this.nodes.push(node)
+        }
+        let childParts = this.addChildPart(node)
+        childParts.map((childPart) => {
+            childPart.addNode(node)
+        })
     }
     isNodeBelongPart(node) {
         return (
@@ -42,107 +51,143 @@ class Part {
     addChildPart(node) {
         const midX = (this.bound[0] + this.bound[2]) / 2
         const midY = (this.bound[1] + this.bound[3]) / 2
-        if (node.x <= midX && node.y <= midY) {
-            return (
+        let childParts = []
+        if (
+            node.x <= midX + MIN_ATTACH_DISTANCE &&
+            node.y <= midY + MIN_ATTACH_DISTANCE
+        ) {
+            childParts.push(
                 this.childParts["bl"] ||
-                this.createChildPart("bl", [
-                    this.bound[0],
-                    this.bound[1],
-                    midX,
-                    midY,
-                ])
-            )
-        } else if (node.x <= midX && node.y > midY) {
-            return (
-                this.childParts["tl"] ||
-                this.createChildPart("tl", [
-                    this.bound[0],
-                    midY,
-                    midX,
-                    this.bound[3],
-                ])
-            )
-        } else if (node.x >= midX && node.y <= midY) {
-            return (
-                this.childParts["br"] ||
-                this.createChildPart("br", [
-                    midX,
-                    this.bound[1],
-                    this.bound[2],
-                    midY,
-                ])
-            )
-        } else if (node.x >= midX && node.y > midY) {
-            return (
-                this.childParts["tr"] ||
-                this.createChildPart("tr", [
-                    midX,
-                    midY,
-                    this.bound[2],
-                    this.bound[3],
-                ])
+                    this.createChildPart("bl", [
+                        this.bound[0],
+                        this.bound[1],
+                        midX,
+                        midY,
+                    ])
             )
         }
+        if (
+            node.x <= midX + MIN_ATTACH_DISTANCE &&
+            node.y > midY - MIN_ATTACH_DISTANCE
+        ) {
+            childParts.push(
+                this.childParts["tl"] ||
+                    this.createChildPart("tl", [
+                        this.bound[0],
+                        midY,
+                        midX,
+                        this.bound[3],
+                    ])
+            )
+        }
+        if (
+            node.x >= midX - MIN_ATTACH_DISTANCE &&
+            node.y <= midY + MIN_ATTACH_DISTANCE
+        ) {
+            childParts.push(
+                this.childParts["br"] ||
+                    this.createChildPart("br", [
+                        midX,
+                        this.bound[1],
+                        this.bound[2],
+                        midY,
+                    ])
+            )
+        }
+        if (
+            node.x >= midX - MIN_ATTACH_DISTANCE &&
+            node.y > midY - MIN_ATTACH_DISTANCE
+        ) {
+            childParts.push(
+                this.childParts["tr"] ||
+                    this.createChildPart("tr", [
+                        midX,
+                        midY,
+                        this.bound[2],
+                        this.bound[3],
+                    ])
+            )
+        }
+        return childParts
     }
     createChildPart(childPartType, bound) {
         if (!childPartTypes.includes(childPartType)) {
-            console.log("Wrong childpart type")
-            return false
+            throw new Error("Wrong childpart type")
         }
         return (this.childParts[childPartType] = new Part(
             this.level + 1,
             bound
         ))
     }
-    traverse(level, drawCb, camera) {
-        return traverseSub.call(this, level)
+    traverse(drawCb, drawHintCb, camera) {
+        return traverseSub.call(this)
 
         function isViewValid() {
-            if (this.level <= 1) return true
+            if (this.level <= 0) return true
             let maxDis = -Infinity
             let childNodes = []
+            let maxDisNodeCombinationCoords = [] // 存储最长投影距离点及其投影点
             childPartTypes.map((childPartType) => {
                 if (this.childParts[childPartType]) {
-                    childNodes.concat(this.childParts[childPartType].nodes)
+                    childNodes = childNodes.concat(
+                        this.childParts[childPartType].nodes
+                    )
                 }
             })
             for (let i = 0; i < this.nodes.length - 1; i++) {
                 let x1 = this.nodes[i].x
-                let y1 = this.nodes[i].z
+                let y1 = this.nodes[i].y
                 let x2 = this.nodes[i + 1].x
-                let y2 = this.nodes[i + 1].z
+                let y2 = this.nodes[i + 1].y
+                // 如果两个点的视觉距离特别短，就不计算了，避免精度导致的误差
+                if (
+                    calDisInScreen(x1, y1, x2, y2, camera) < MIN_ATTACH_DISTANCE
+                ) {
+                    continue
+                }
                 // 计算每个子节点到父节点的垂距在视觉上的最长投影距离
+                // x0,y0为子节点的坐标
+                // x,y为投影点的坐标
                 childNodes.map((childNode) => {
                     let x0 = childNode.x
-                    let y0 = childNode.z
-                    let k =
-                        ((x0 - x1) * (x2 - x1) + (y0 - y1) * (y2 - y1)) /
-                        ((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
-                    let x = x1 + k * (x2 - x1)
-                    let y = y1 + k * (y2 - y1)
-                    let dis = calDisByCamera(x0, y0, x, y, camera)
-                    maxDis = Math.max(dis, maxDis)
+                    let y0 = childNode.y
+                    let k = (y2 - y1) / (x2 - x1)
+                    if (!isNaN(k)) {
+                        let x = (k * k * x1 + k * (y0 - y1) + x0) / (k * k + 1)
+                        let y = k * (x - x1) + y1
+                        let dis = calDisInScreen(x0, y0, x, y, camera)
+                        if (dis > maxDis) {
+                            maxDis = dis
+                            maxDisNodeCombinationCoords = [x0, y0, x, y]
+                            // let pt1 = getCoordInScreen(x0, y0, camera)
+                            // let pt2 = getCoordInScreen(x, y, camera)
+                            // maxDisNodeCombinationCoords = [
+                            //     pt1.x,
+                            //     pt1.y,
+                            //     pt2.x,
+                            //     pt2.y,
+                            // ]
+                        }
+                    }
                 })
             }
+            // 绘制出断掉的点
+            if (maxDis <= MIN_VEC_DISTANCE) {
+                drawHintCb(...maxDisNodeCombinationCoords)
+                // drawCb(this.bound)
+                console.log(
+                    `draw(${maxDisNodeCombinationCoords[0]},${maxDisNodeCombinationCoords[1]})to(${maxDisNodeCombinationCoords[2]},${maxDisNodeCombinationCoords[3]})`
+                )
+            }
             return maxDis > MIN_VEC_DISTANCE
-            // return (
-            //     calDisByCamera(
-            //         this.bound[0],
-            //         this.bound[1],
-            //         this.bound[2],
-            //         this.bound[3],
-            //         camera
-            //     ) > MIN_VEC_DISTANCE
-            // )
         }
-        function traverseSub(level) {
-            if (!isViewValid.call(this, camera)) return []
+        function traverseSub() {
+            if (!isViewValid.call(this, camera)) return this.nodes
             let res = this.nodes
-
             childPartTypes.map((type) => {
                 let childPart = this.childParts[type]
                 if (childPart) {
-                    res = res.concat(traverseSub.call(childPart, level))
+                    res = res.concat(traverseSub.call(childPart))
                 }
             })
             if (res.length > 0) drawCb(this.bound)
@@ -169,13 +214,9 @@ export class QuadTree {
         }
     }
     addNode(node) {
-        let part = this.root
-        while (!part.isNodeBelongPart(node)) {
-            part = part.addChildPart(node)
-        }
-        part.addNode(node)
+        this.root.addNode(node)
     }
-    traveseTreeByLevel(...args) {
+    traveseTree(...args) {
         return this.root.traverse(...args)
     }
 }

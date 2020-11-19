@@ -7,9 +7,9 @@ export default new Vuex.Store({
     state: {
         minViewDis: 1,
         antialias: true,
-        segments: 10,
         showFrame: true,
         showAxis: false,
+        showOriData: false,
     },
     mutations: {
         setMinViewDis(state, minViewDis) {
@@ -18,14 +18,14 @@ export default new Vuex.Store({
         setAntialias(state, antialias) {
             state.antialias = antialias
         },
-        setSegments(state, segments) {
-            state.segments = segments
-        },
         setShowFrame(state, showFrame) {
             state.showFrame = showFrame
         },
         setShowAxis(state, showAxis) {
             state.showAxis = showAxis
+        },
+        setShowOriData(state, showOriData) {
+            state.showOriData = showOriData
         },
     },
     actions: {},

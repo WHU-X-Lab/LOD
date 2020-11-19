@@ -32,13 +32,8 @@
       </div>
       <a-divider></a-divider>
       <div class="control-pannel-item">
-        <span>格网密度</span>
-        <a-input-number
-          :value="segments"
-          :max="maxSegments"
-          :min="minSegments"
-          @change="handleSegmentsChange"
-        ></a-input-number>
+        <span>显示原数据</span>
+        <a-switch @change="handleShowOriData"></a-switch>
       </div>
     </div>
   </div>
@@ -69,7 +64,7 @@ export default {
     };
   },
   computed: {
-    ...mapState(["segments", "showFrame"]),
+    ...mapState(["segments", "showFrame", "showOriData"]),
     classes() {
       return `control-${this.showPannel ? "show" : "hide"}`;
     }
@@ -79,7 +74,8 @@ export default {
       "setAntialias",
       "setSegments",
       "setShowFrame",
-      "setShowAxis"
+      "setShowAxis",
+      "setShowOriData"
     ]),
     handleShowToggle() {
       this.showPannel = !this.showPannel;
@@ -98,6 +94,9 @@ export default {
     },
     handleShowAxis(e) {
       this.setShowAxis(e);
+    },
+    handleShowOriData(e) {
+      this.setShowOriData(e);
     }
   }
 };
