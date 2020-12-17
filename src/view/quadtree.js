@@ -2,10 +2,11 @@ import * as THREE from "three"
 import {
     MIN_ATTACH_DISTANCE,
     MIN_VEC_DISTANCE,
+    MIN_VIEW_DISTANCE,
     childPartTypes,
     MAX_LEVEL,
 } from "../config"
-import { calDisInScreen } from "../util"
+import { calDisInScreen, getDropFoot, getVecLength } from "../util"
 
 class Node {
     constructor(x = 0, y = 0, z = 0, uuid = 0) {
@@ -30,6 +31,8 @@ class Part {
             bl: null,
             br: null,
         }
+        this.farthestLine = null
+        this.needSplit = false
     }
     addNode(node) {
         if (this.level > MAX_LEVEL) return
@@ -124,62 +127,8 @@ class Part {
 
         function isViewValid() {
             if (this.level <= 0) return true
-            let maxDis = -Infinity
-            let childNodes = []
-            let maxDisNodeCombinationCoords = [] // 存储最长投影距离点及其投影点
-            childPartTypes.map((childPartType) => {
-                if (this.childParts[childPartType]) {
-                    childNodes = childNodes.concat(
-                        this.childParts[childPartType].nodes
-                    )
-                }
-            })
-            for (let i = 0; i < this.nodes.length - 1; i++) {
-                let x1 = this.nodes[i].x
-                let y1 = this.nodes[i].y
-                let x2 = this.nodes[i + 1].x
-                let y2 = this.nodes[i + 1].y
-                // 如果两个点的视觉距离特别短，就不计算了，避免精度导致的误差
-                if (
-                    calDisInScreen(x1, y1, x2, y2, camera) < MIN_ATTACH_DISTANCE
-                ) {
-                    continue
-                }
-                // 计算每个子节点到父节点的垂距在视觉上的最长投影距离
-                // x0,y0为子节点的坐标
-                // x,y为投影点的坐标
-                childNodes.map((childNode) => {
-                    let x0 = childNode.x
-                    let y0 = childNode.y
-                    let k = (y2 - y1) / (x2 - x1)
-                    if (!isNaN(k)) {
-                        let x = (k * k * x1 + k * (y0 - y1) + x0) / (k * k + 1)
-                        let y = k * (x - x1) + y1
-                        let dis = calDisInScreen(x0, y0, x, y, camera)
-                        if (dis > maxDis) {
-                            maxDis = dis
-                            maxDisNodeCombinationCoords = [x0, y0, x, y]
-                            // let pt1 = getCoordInScreen(x0, y0, camera)
-                            // let pt2 = getCoordInScreen(x, y, camera)
-                            // maxDisNodeCombinationCoords = [
-                            //     pt1.x,
-                            //     pt1.y,
-                            //     pt2.x,
-                            //     pt2.y,
-                            // ]
-                        }
-                    }
-                })
-            }
-            // 绘制出断掉的点
-            if (maxDis <= MIN_VEC_DISTANCE) {
-                drawHintCb(...maxDisNodeCombinationCoords)
-                // drawCb(this.bound)
-                console.log(
-                    `draw(${maxDisNodeCombinationCoords[0]},${maxDisNodeCombinationCoords[1]})to(${maxDisNodeCombinationCoords[2]},${maxDisNodeCombinationCoords[3]})`
-                )
-            }
-            return maxDis > MIN_VEC_DISTANCE
+            if()
+            return this.level < 5
         }
         function traverseSub() {
             if (!isViewValid.call(this, camera)) return this.nodes
@@ -212,9 +161,81 @@ export class QuadTree {
                 new Node(data[i], data[i + 1], data[i + 2], this.uuid++)
             )
         }
+        this.findFarNode(this.root)
     }
     addNode(node) {
         this.root.addNode(node)
+    }
+    // 遍历根结点，找到每一层最远的点对，并存储下来
+    findFarNode(part) {
+        part.nodes = part.nodes.sort((a, b) => a.uuid - b.uuid)
+        // 剔除非常相邻的点
+        let currNode = part.nodes[0]
+        let validNodes = part.nodes.reduce(
+            (prev, curr) => {
+                if (
+                    getVecLength(currNode.x, currNode.y, curr.x, curr.y) >
+                    MIN_VIEW_DISTANCE * Math.pow(0.5, part.level)
+                ) {
+                    currNode = curr
+                    return prev.concat(curr)
+                } else {
+                    return prev
+                }
+            },
+            [currNode]
+        )
+        // 如果仅存在一个有效点，则直接返回空，表示该区域内无任何点
+        if (validNodes.length === 1) {
+            return []
+        }
+        // 如果仅存在两个有效点，则记录下最远垂距,并且返回其子区域内的点
+        if (validNodes.length === 2) {
+            let allNodes = childPartTypes.reduce((nodes, type) => {
+                if (part.childParts[type]) {
+                    return nodes.concat(this.findFarNode(part.childParts[type]))
+                } else {
+                    return nodes
+                }
+            }, part.nodes)
+            let maxDis = -Infinity
+            let maxDisNodes = []
+            let node1 = validNodes[0]
+            let node2 = validNodes[1]
+            allNodes.map((node) => {
+                let dropFoot = getDropFoot(
+                    node1.x,
+                    node1.y,
+                    node2.x,
+                    node2.y,
+                    node.x,
+                    node.y
+                )
+                let dis = getVecLength(
+                    dropFoot[0],
+                    dropFoot[1],
+                    node[0],
+                    node[1]
+                )
+                if (dis > maxDis) {
+                    maxDis = dis
+                    maxDisNodes = [dropFoot[0], dropFoot[1], node[0], node[1]]
+                }
+            })
+            part.farthestLine = maxDisNodes
+            return allNodes
+        }
+        // 如果存在不止两个有效点，则继续剖分，并且将Part标记为需要分裂,并且返回其子区域内的点
+        if (validNodes.length > 2) {
+            part.needSplit = true
+            return childPartTypes.reduce((nodes, type) => {
+                if (part.childParts[type]) {
+                    return nodes.concat(this.findFarNode(part.childParts[type]))
+                } else {
+                    return nodes
+                }
+            }, part.nodes)
+        }
     }
     traveseTree(...args) {
         return this.root.traverse(...args)
