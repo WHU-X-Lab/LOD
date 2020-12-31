@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>测试点在四边形内</title>
+        <style>
+            * {
+                margin: 0;
+            }
+            #canvas {
+                border: 1px solid #ccc;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas"></canvas>
+        <div id="hint"></div>
+        <script>
+            function isNodeInQuad(pt, [pt1, pt2, pt3, pt4]) {
+                let a =
+                    (pt2.x - pt1.x) * (pt.y - pt1.y) -
+                    (pt2.y - pt1.y) * (pt.x - pt1.x)
+                let b =
+                    (pt3.x - pt2.x) * (pt.y - pt2.y) -
+                    (pt3.y - pt2.y) * (pt.x - pt2.x)
+                let c =
+                    (pt4.x - pt3.x) * (pt.y - pt3.y) -
+                    (pt4.y - pt3.y) * (pt.x - pt3.x)
+                let d =
+                    (pt1.x - pt4.x) * (pt.y - pt4.y) -
+                    (pt1.y - pt4.y) * (pt.x - pt4.x)
+                return (
+                    (a > 0 && b > 0 && c > 0 && d > 0) ||
+                    (a < 0 && b < 0 && c < 0 && d < 0)
+                )
+            }
+            var c = document.getElementById("canvas")
+            const width = c.width
+            const height = c.height
+            var ctx = c.getContext("2d")
+
+            ctx.beginPath()
+            ctx.moveTo(20, 20)
+            ctx.lineTo(30, 100)
+            ctx.lineTo(50, 120)
+            ctx.lineTo(70, 70)
+            ctx.fillStyle = "#FF0000"
+            ctx.fill()
+            const path = [
+                { x: 20, y: 20 },
+                { x: 30, y: 100 },
+                { x: 50, y: 120 },
+                { x: 70, y: 70 },
+            ]
+            c.addEventListener("mousemove", (e) => {
+                if (isNodeInQuad({ x: e.clientX, y: e.clientY }, path)) {
+                    document.getElementById("hint").innerHTML = "点在多边形中"
+                } else {
+                    document.getElementById("hint").innerHTML = "点不在多边形中"
+                }
+            })
+        </script>
+    </body>
+</html>

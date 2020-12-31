@@ -100,6 +100,7 @@ export default {
     },
     init({ data, minX, minY, maxX, maxY }) {
       let points = [];
+      let specialPoints = [];
       let firstPt = this.mapCoordType(data[0], { minX, minY, maxX, maxY });
       let oriPoints = [firstPt[0], 0, firstPt[1]];
       for (let i = 1; i < data.length; i++) {
@@ -141,12 +142,20 @@ export default {
           points.push(x, a * x + b, 0);
         });
       }
+      specialPoints = [
+        [points[0], points[1], points[2]],
+        [
+          points[points.length - 3],
+          points[points.length - 2],
+          points[points.length - 1],
+        ],
+      ];
       this.oriGeom.setAttribute(
         "position",
         new THREE.Float32BufferAttribute(oriPoints, 3)
       );
       this.oriMesh = new THREE.Line(this.oriGeom, this.oriMaterial);
-      this.rankedLine = new QuadTree(points);
+      this.rankedLine = new QuadTree(points, specialPoints);
       this.updateGeom();
     },
     resetRenderer() {
