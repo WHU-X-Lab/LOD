@@ -1,12 +1,20 @@
 <template>
-  <div class="terrain-wrap">
-    <div class="axis axis-left" v-show="showAxis"></div>
-    <div class="axis axis-right" v-show="showAxis"></div>
-    <canvas
-      class="terrain"
-      @mouseup="onViewChange"
-      @wheel="onViewChange"
-    ></canvas>
+  <div class="terrain-wrap" id="terrain-wrap">
+    <canvas id="terrain" @mouseup="onViewChange" @wheel="onViewChange"></canvas>
+    <div class="terrain-stats">
+      <div class="terrain-stats-item">
+        <div class="terrain-stats-item-title">FPS</div>
+        <div class="terrian-stats-item-chart" id="fpsDom"></div>
+      </div>
+      <div class="terrain-stats-item">
+        <div class="terrain-stats-item-title">每帧耗时</div>
+        <div class="terrian-stats-item-chart" id="msDom"></div>
+      </div>
+      <div class="terrain-stats-item">
+        <div class="terrain-stats-item-title">内存</div>
+        <div class="terrian-stats-item-chart" id="mbDom"></div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -14,13 +22,17 @@
 import * as THREE from "three";
 import { mapState } from "vuex";
 import { MapControls } from "three/examples/jsm/controls/OrbitControls.js";
+import Stats from "stats.js";
 import { getData } from "../data";
-import { QuadTree } from "../view/quadtree";
-import { MAX_LEVEL } from "../config";
-
-const MIN_LEVEL_WIDTH = 1 / Math.pow(2, MAX_LEVEL);
+import { QuadTree } from "../view";
 
 export default {
+  props: {
+    eventHandler: {
+      type: Object,
+      default: () => {},
+    },
+  },
   data() {
     return {
       cameraDepth: 1.2,
@@ -66,9 +78,38 @@ export default {
     this.geom = new THREE.BufferGeometry();
     this.oriGeom = new THREE.BufferGeometry();
 
+    // init stats
+    const stats1 = new Stats();
+    stats1.dom.style.position = "";
+    stats1.dom.style.top = "";
+    stats1.dom.style.bottom = "";
+    const stats2 = new Stats();
+    stats2.dom.style.position = "";
+    stats2.dom.style.top = "";
+    stats2.dom.style.bottom = "";
+    const stats3 = new Stats();
+    stats3.dom.style.position = "";
+    stats3.dom.style.top = "";
+    stats3.dom.style.bottom = "";
+    stats1.showPanel(0);
+    document.getElementById("fpsDom").appendChild(stats1.dom);
+    stats2.showPanel(1);
+    document.getElementById("msDom").appendChild(stats2.dom);
+    stats3.showPanel(2);
+    document.getElementById("mbDom").appendChild(stats3.dom);
+
     this.renderer.setAnimationLoop(() => {
+      stats1.begin();
+      stats2.begin();
+      stats3.begin();
       this.renderer.render(this.scene, this.camera);
+      stats1.end();
+      stats2.end();
+      stats3.end();
     });
+
+    // 监听视角变化属性
+    this.eventHandler.$on("visionChange", this.handleVisionChange.bind(this));
 
     // init
     getData().then(this.init, (err) => {
@@ -90,76 +131,51 @@ export default {
         this.scene.remove(this.frameGroup);
       }
     },
+    minViewDis(dis) {
+      this.updateGeom();
+    },
   },
   computed: {
-    ...mapState(["showFrame", "showAxis", "showOriData"]),
+    ...mapState(["showFrame", "showAxis", "showOriData", "minViewDis"]),
   },
   methods: {
     onViewChange() {
       this.updateGeom();
+      this.eventHandler.$emit("viewChange", this.camera);
+    },
+    handleVisionChange(type, angle) {
+      const delta = ((2 * Math.PI) / 180) * angle;
+      if (type === "top") {
+        this.controls.rotateUp(delta);
+      } else if (type === "bottom") {
+        this.controls.rotateUp(-delta);
+      } else if (type === "left") {
+        this.controls.rotateLeft(delta);
+      } else if (type === "right") {
+        this.controls.rotateLeft(-delta);
+      }
+      this.controls.update();
     },
     init({ data, minX, minY, maxX, maxY }) {
-      let points = [];
-      let specialPoints = [];
-      let firstPt = this.mapCoordType(data[0], { minX, minY, maxX, maxY });
-      let oriPoints = [firstPt[0], 0, firstPt[1]];
-      for (let i = 1; i < data.length; i++) {
-        const coord1 = this.mapCoordType(data[i - 1], {
-          minX,
-          minY,
-          maxX,
-          maxY,
-        });
-        const coord2 = this.mapCoordType(data[i], { minX, minY, maxX, maxY });
-        const a = (coord1[1] - coord2[1]) / (coord1[0] - coord2[0]);
-        const b = coord1[1] - a * coord1[0];
-        let childNodes = [coord1[0], coord2[0]];
-        oriPoints.push(coord1[0], 0, coord1[1]);
-        if (coord1[0] - coord2[0] !== 0) {
-          if (coord1[0] <= coord2[0]) {
-            for (let i = coord1[0]; i <= coord2[0]; i += MIN_LEVEL_WIDTH) {
-              childNodes.push(i - (i % MIN_LEVEL_WIDTH));
-            }
-          } else {
-            for (let i = coord2[0]; i <= coord1[0]; i += MIN_LEVEL_WIDTH)
-              childNodes.push(i - (i % MIN_LEVEL_WIDTH));
-          }
-        }
-        if (a !== 0) {
-          if (coord1[1] <= coord2[1]) {
-            for (let i = coord1[1]; i <= coord2[1]; i += MIN_LEVEL_WIDTH) {
-              childNodes.push((i - b) / a - (((i - b) / a) % MIN_LEVEL_WIDTH));
-            }
-          } else {
-            for (let i = coord2[1]; i <= coord1[1]; i += MIN_LEVEL_WIDTH)
-              childNodes.push((i - b) / a - (((i - b) / a) % MIN_LEVEL_WIDTH));
-          }
-        }
-
-        childNodes.sort((a, b) => a - b);
-        childNodes = [...new Set(childNodes)];
-        childNodes.map((x) => {
-          points.push(x, a * x + b, 0);
-        });
-      }
-      specialPoints = [
-        [points[0], points[1], points[2]],
-        [
-          points[points.length - 3],
-          points[points.length - 2],
-          points[points.length - 1],
-        ],
-      ];
+      let points = data.map((pt) =>
+        this.mapCoordType(pt, { minX, minY, maxX, maxY })
+      );
       this.oriGeom.setAttribute(
         "position",
-        new THREE.Float32BufferAttribute(oriPoints, 3)
+        new THREE.Float32BufferAttribute(
+          points.reduce((prev, curr) => {
+            return prev.concat([curr[0], 0, curr[1]]);
+          }, []),
+          3
+        )
       );
       this.oriMesh = new THREE.Line(this.oriGeom, this.oriMaterial);
-      this.rankedLine = new QuadTree(points, specialPoints);
+      this.rankedLine = new QuadTree(points);
+      points.map((pt) => this.drawPt(pt[0], pt[1]));
       this.updateGeom();
     },
     resetRenderer() {
-      let canvas = document.getElementsByClassName("terrain")[0];
+      let canvas = document.getElementById("terrain");
       this.renderer = new THREE.WebGLRenderer({
         canvas,
         antialias: true,
@@ -216,6 +232,20 @@ export default {
       let mesh = new THREE.Line(geom, mat);
       this.frameGroup.add(mesh);
     },
+    drawPt(x, y) {
+      let geom = new THREE.SphereBufferGeometry(0.005, 32, 32);
+      let mat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      let pos = [x, 0, y];
+      let mat4 = new THREE.Matrix4();
+      mat4.compose(
+        new THREE.Vector3(...pos),
+        new THREE.Quaternion(),
+        new THREE.Vector3(1, 1, 1)
+      );
+      geom.applyMatrix4(mat4);
+      let mesh = new THREE.Mesh(geom, mat);
+      this.scene.add(mesh);
+    },
     mapCoordType(coord, { minX, minY, maxX, maxY }) {
       return [
         (coord[0] - minX) / (maxX - minX) - 0.5,
@@ -226,19 +256,20 @@ export default {
       this.resetGroup();
       let points = null;
       if (this.showFrame) {
-        points = this.rankedLine.traveseTree(
+        points = this.rankedLine.traverse(
           this.drawBound,
           this.drawHint,
-          this.camera
+          this.camera,
+          this.minViewDis
         );
       } else {
-        points = this.rankedLine.traveseTree(
+        points = this.rankedLine.traverse(
           () => {},
           this.drawHint,
-          this.camera
+          this.camera,
+          this.minViewDis
         );
       }
-
       this.geom.setAttribute(
         "position",
         new THREE.Float32BufferAttribute(points, 3)
@@ -253,33 +284,32 @@ export default {
 </script>
 
 <style lang="less" scoped>
+@header-height: 50px;
+@footer-height: 50px;
 .terrain-wrap {
+  display: flex;
+  flex-direction: column;
   position: relative;
-  .axis {
-    position: absolute;
-    margin-left: 50vw;
-    margin-top: 50vh;
-    width: 50px;
-    height: 50px;
-    pointer-events: none;
+  #terrain {
+    width: 100% !important;
+    height: 100% !important;
+    outline: none;
+    border-bottom: 1px solid #eee;
   }
-  .axis-left {
-    border-left: 5px solid red;
-    transform: translate(-2.5px, -25px);
-  }
-  .axis-right {
-    border-top: 5px solid red;
-    transform: translate(-25px, -2.5px);
-  }
-  .tip {
-    position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-  .terrain {
-    width: 100%;
-    height: 100%;
+  .terrain-stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: black;
+    color: white;
+    &-item {
+      &-title {
+        font-weight: bold;
+      }
+      &-chart {
+        pointer-events: none;
+      }
+    }
   }
 }
 </style>

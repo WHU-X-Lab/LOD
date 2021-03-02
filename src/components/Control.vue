@@ -1,155 +1,257 @@
 <template>
-  <div class="control" :class="classes">
-    <div class="control-icon-wrap" @click="handleShowToggle">
-      <img
-        class="control-icon"
-        src="../assets/setting.png"
-        draggable="false"
-        alt="control.png"
-      />
-      <span>{{ pannelTitle }}</span>
+  <div class="control">
+    <div class="control-title">
+      <img src="../assets/setting.png" alt="setting.png" draggable="false" />
+      {{ pannelTitle }}
     </div>
-    <div v-if="showPannel" class="control-pannel">
-      <a-divider></a-divider>
-      <label for="file" class="input-btn">上传本地文件</label>
-      <input
-        ref="file"
-        type="file"
-        id="file"
-        name="file"
-        accept=".png, .jpg, .jpeg"
-        @change="handleFileUpload"
-      />
-      <a-divider></a-divider>
+    <div class="control-pannel">
       <div class="control-pannel-item">
         <span>显示Debug框架</span>
-        <a-switch defaultChecked @change="handleShowFrame"></a-switch>
+        <a-switch defaultChecked @change="setShowFrame"></a-switch>
       </div>
-      <a-divider></a-divider>
-      <div class="control-pannel-item">
-        <span>显示视觉中心</span>
-        <a-switch @change="handleShowAxis"></a-switch>
-      </div>
-      <a-divider></a-divider>
       <div class="control-pannel-item">
         <span>显示原数据</span>
-        <a-switch @change="handleShowOriData"></a-switch>
+        <a-switch @change="setShowOriData"></a-switch>
+      </div>
+      <div class="control-pannel-item">
+        <span
+          ><a-tooltip title="控制格网是否分类的因素，该因素越小，分裂程度越高">
+            最小分裂距离</a-tooltip
+          >
+        </span>
+        <a-input-number
+          :min="0"
+          :max="0.1"
+          :value="minViewDis"
+          :step="0.001"
+          @change="setMinViewDis"
+        ></a-input-number>
+      </div>
+      <div class="control-pannel-item">
+        <span>视角变化粒度</span>
+        <a-input-number
+          :min="1"
+          :max="20"
+          v-model="angle"
+          :step="1"
+        ></a-input-number>
+      </div>
+      <div class="control-pannel-item arrow-group">
+        <div>视角控制</div>
+        <div class="arrow-line">
+          <a-tooltip :title="getBtnTooltip('top')" placement="top">
+            <img
+              src="../assets/arrow.png"
+              alt="arrow.png"
+              draggable="false"
+              @click="handleViewChange('top')"
+            />
+          </a-tooltip>
+        </div>
+        <div class="arrow-line">
+          <a-tooltip :title="getBtnTooltip('left')" placement="left">
+            <img
+              src="../assets/arrow.png"
+              alt="arrow.png"
+              draggable="false"
+              @click="handleViewChange('left')"
+            />
+          </a-tooltip>
+          <a-tooltip :title="getBtnTooltip('right')" placement="bottomRight">
+            <img
+              src="../assets/arrow.png"
+              alt="arrow.png"
+              draggable="false"
+              @click="handleViewChange('right')"
+            />
+          </a-tooltip>
+        </div>
+        <div class="arrow-line">
+          <a-tooltip :title="getBtnTooltip('bottom')" placement="bottom">
+            <img
+              src="../assets/arrow.png"
+              alt="arrow.png"
+              draggable="false"
+              @click="handleViewChange('bottom')"
+            />
+          </a-tooltip>
+        </div>
+      </div>
+      <div class="control-pannel-item minimap">
+        <div class="minimap-wrap">
+          <div class="minimap-title">鹰眼图</div>
+          <canvas id="minimap" width="100" height="100"></canvas>
+          <div class="minimap-desc">
+            <div>黄色的锥体表示视锥体</div>
+            <div>蓝色的线表示目标区域</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import * as THREE from "three";
 import { mapMutations, mapState } from "vuex";
-import { getData } from "../data";
+import { MapControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 export default {
   props: {
-    terrain: {
+    eventHandler: {
       type: Object,
-      default: () => {}
-    }
+      default: () => {},
+    },
   },
   data() {
     return {
-      showPannel: false,
       pannelTitle: "控制面板",
-      minSegments: 0,
-      maxSegments: 20,
-      segmentsStep: 1,
-      minHeightPerScale: 1 / 1000,
-      maxHeightPerScale: 1 / 10,
-      heightPerScaleStep: 1 / 1000,
-      segmentMarks: { 0: 0, 20: 20 }
+      angle: 5,
     };
   },
+  mounted() {
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      0.01,
+      1000
+    );
+    this.camera.position.set(0, 2, 0);
+    let canvas = document.getElementById("minimap");
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+    });
+    this.renderer.setClearColor("#fff");
+    this.renderer.setPixelRatio(window.devicePixelRatio || 1);
+    this.controls = new MapControls(this.camera, this.renderer.domElement);
+    this.controls.screenSpacePanning = false;
+
+    // display
+    let points = [
+      [-0.5, -0.5],
+      [-0.5, 0.5],
+      [0.5, 0.5],
+      [0.5, -0.5],
+      [-0.5, -0.5],
+    ];
+    this.mat = new THREE.LineBasicMaterial({
+      color: 0x0000ff,
+    });
+    this.geom = new THREE.BufferGeometry();
+    this.geom.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(
+        points.reduce((prev, curr) => {
+          return prev.concat([curr[0], 0, curr[1]]);
+        }, []),
+        3
+      )
+    );
+    this.mesh = new THREE.Line(this.geom, this.mat);
+    this.scene.add(this.mesh);
+
+    this.cameraPtGeom = new THREE.SphereBufferGeometry(0.1, 32, 32);
+    this.cameraPtMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    this.cameraPtMesh = null;
+
+    // render
+    this.renderer.setAnimationLoop(() => {
+      this.renderer.render(this.scene, this.camera);
+    });
+
+    let that = this;
+    this.eventHandler.$on("viewChange", (camera) => {
+      let { position } = camera;
+      let pos = [position.x, 0, position.z];
+      let mat4 = new THREE.Matrix4();
+      mat4.compose(
+        new THREE.Vector3(...pos),
+        new THREE.Quaternion(),
+        new THREE.Vector3(1, 1, 1)
+      );
+      that.cameraPtGeom.applyMatrix4(mat4);
+      that.scene.remove(that.cameraPtMesh);
+      that.cameraPtMesh = new THREE.Mesh(that.cameraPtGeom, that.cameraPtMat);
+      that.scene.add(that.cameraPtMesh);
+    });
+  },
   computed: {
-    ...mapState(["segments", "showFrame", "showOriData"]),
-    classes() {
-      return `control-${this.showPannel ? "show" : "hide"}`;
-    }
+    ...mapState(["showFrame", "showOriData", "minViewDis"]),
   },
   methods: {
-    ...mapMutations([
-      "setAntialias",
-      "setSegments",
-      "setShowFrame",
-      "setShowAxis",
-      "setShowOriData"
-    ]),
-    handleShowToggle() {
-      this.showPannel = !this.showPannel;
+    ...mapMutations(["setShowFrame", "setShowOriData", "setMinViewDis"]),
+    getBtnTooltip(type) {
+      const prefix = "向";
+      const suffix = "旋转";
+      const suffix2 = "度";
+      const typeMap = { left: "左", right: "右", top: "上", bottom: "下" };
+      return prefix + typeMap[type] + suffix + this.angle + suffix2;
     },
-    handleAntialias(antialias) {
-      this.setAntialias(antialias);
+    handleViewChange(type) {
+      this.eventHandler.$emit("visionChange", type, this.angle);
     },
-    handleSegmentsChange(e) {
-      this.setSegments(e);
-    },
-    handleShowFrame(e) {
-      this.setShowFrame(e);
-    },
-    handleFileUpload() {
-      getData(this.$refs.file).then(this.setGeoData);
-    },
-    handleShowAxis(e) {
-      this.setShowAxis(e);
-    },
-    handleShowOriData(e) {
-      this.setShowOriData(e);
-    }
-  }
+  },
 };
 </script>
 
 <style lang="less" scoped>
+@blue: #1e90ff;
+@lightblue: #e6f7ff;
+@grey: #eee;
+
 .control {
-  padding: 10px;
-  border-radius: 35px 0 0 35px;
-  background: #fff;
-  box-shadow: 0 0 10px #ccc;
-  transition: all 0.5s;
-  z-index: 10000;
-
-  #file {
-    display: none;
-  }
-
-  &-hide {
-    &:hover {
-      padding-right: 50px;
+  &-title {
+    img {
+      width: 30px;
+      height: 30px;
     }
-  }
-
-  &-show {
-    width: 20%;
-    height: 100%;
-    border-radius: 10px 0 0 10px;
-  }
-
-  &-icon {
-    width: 50px;
-    height: 50px;
-
-    &-wrap {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      // color: #1890ff;
-      font-size: 18px;
-      font-weight: bold;
-    }
+    padding: 20px;
+    border-bottom: 1px solid @grey;
+    font-size: 20px;
+    font-weight: bold;
   }
   &-pannel {
-    .input-btn {
-      padding: 10px;
-      border-radius: 10px;
-      color: #fff;
-      background: #1890ff;
-      font-weight: bold;
-    }
     &-item {
-      align-items: center;
+      padding: 10px 0;
+      border-left: 5px solid white;
+      span {
+        margin: 10px;
+      }
+      &:hover {
+        border-left: 5px solid @blue;
+        background: @lightblue;
+        color: @blue;
+      }
+    }
+    .arrow-group {
+      img {
+        width: 30px;
+        height: 30px;
+        margin: 0 15px;
+        cursor: pointer;
+      }
+
+      .arrow-line:nth-child(2) {
+        transform: rotate(180deg);
+      }
+      .arrow-line:nth-child(3) {
+        img:nth-child(1) {
+          transform: rotate(90deg);
+        }
+        img:nth-child(2) {
+          transform: rotate(-90deg);
+        }
+      }
+    }
+    .minimap {
+      &-title {
+        color: @blue;
+      }
+      #minimap {
+        border: 1px solid @grey;
+      }
     }
   }
 }
