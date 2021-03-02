@@ -28,7 +28,7 @@ class Part {
         this.centerX = (bound[0] + bound[2]) / 2
         this.centerY = (bound[1] + bound[3]) / 2
         this.intersectNodes = []
-        this.validIndexRanges = []
+        this.includingNodes = []
         this.childParts = {
             tl: null,
             tr: null,
@@ -87,6 +87,7 @@ class Part {
         } else if (node.x >= this.centerX && node.y >= this.centerY) {
             return "tr"
         } else {
+            debugger
             throw Error("No childparts matched")
         }
     }
@@ -100,8 +101,8 @@ export class QuadTree {
         this.init(nodesBuffer)
     }
     init(nodesBuffer) {
-        this._rootPart.validIndexRanges = [[0, nodesBuffer.length - 1]]
         this.initNodes(nodesBuffer)
+        this._rootPart.includingNodes = [this._nodes]
         this.findAllIntersectNodes(this._rootPart)
     }
     // 将点的Buffer数据转化为真正的点并存储起来
@@ -110,58 +111,60 @@ export class QuadTree {
             this._nodes.push(new Node(node[0], node[1], 0, this._uuid++))
         })
     }
-    traverseValidNodes(ranges, cb) {
-        let { _nodes } = this
-        ranges.map(([startIndex, endIndex]) => {
-            if (
-                typeof startIndex !== "undefined" &&
-                typeof endIndex !== "undefined"
-            ) {
-                for (let i = startIndex; i <= endIndex; i++) {
-                    cb(
-                        _nodes[i],
-                        i,
-                        i + 1 > _nodes.length - 1 ? null : _nodes[i + 1],
-                        [startIndex, endIndex]
-                    )
-                }
-            } else {
-                throw "错误的数组下标"
-            }
+    traverseValidNodes(nodeLists, cb) {
+        nodeLists.map((nodeList, i) => {
+            nodeList.map((node, index) => {
+                let nextNode =
+                    index > nodeList.length ? null : nodeList[index + 1]
+                cb({
+                    node,
+                    index,
+                    nodeList,
+                    nextNode,
+                })
+            })
         })
+    }
+    composeNodes(startNode, endNode, nodes) {
+        if (startNode) {
+            nodes.unshift(startNode)
+        }
+        if (endNode) {
+            nodes.push(endNode)
+        }
+        return nodes
     }
     // 1.找到线数据与全部层级的交点
     // 2.找到每一层最远的点对，并且存储下来
     findAllIntersectNodes(part) {
         if (part.level > MAX_LEVEL) return
         let [startIndex, childpartType] = [
-            part.validIndexRanges[0][0],
-            part.nodeInWhichChildPart(this._nodes[part.validIndexRanges[0][0]]),
+            0,
+            part.nodeInWhichChildPart(part.includingNodes[0][0]),
         ]
+        let [startNode, endNode] = [null, null]
         let { centerX, centerY } = part
         let maxDis = -Infinity
         let maxDisNodes = []
         this.traverseValidNodes(
-            part.validIndexRanges,
-            (node, index, nextNode, [start, end]) => {
+            part.includingNodes,
+            ({ node, index, nodeList, nextNode }) => {
+                if (index === 0) startIndex = 0
                 // 如果是最后的点，则直接进行子区域判断
-                if (index === 5) {
-                    debugger
-                }
-                if (
-                    index >=
-                    part.validIndexRanges[part.validIndexRanges.length - 1][1]
-                ) {
-                    part.getChildPart(childpartType).validIndexRanges.push([
-                        startIndex,
-                        index,
-                    ])
+                if (!nextNode) {
+                    endNode = null
+                    part.getChildPart(childpartType).includingNodes.push(
+                        this.composeNodes(
+                            startNode,
+                            endNode,
+                            nodeList.slice(startIndex)
+                        )
+                    )
                     return
                 }
-                if (nextNode === null) throw "出现node下标越界情况"
                 // 找最远的点对
-                let node1 = this._nodes[start]
-                let node2 = this._nodes[end]
+                let node1 = nodeList[0]
+                let node2 = nodeList[nodeList.length - 1]
                 let dropFoot = getDropFoot(
                     node1.x,
                     node1.y,
@@ -175,30 +178,11 @@ export class QuadTree {
                     maxDis = dis
                     maxDisNodes = [dropFoot[0], dropFoot[1], node.x, node.y]
                 }
-                // 先判断点是否就在边界上,如果在,则
-                // 1.标记该点为交点
-                // 2.判断下一个点是否与之前的点不在一个子区域内
-                //      如果是则
-                //          * 原子区域的validIndexRanges增加[startIndex,index]的部分
-                //          * 重置startIndex,endIndex,childpartType
-                //      如果不是则继续
-                if (node.x === centerX || node.y === centerY) {
-                    part.intersectNodes.push(node)
-                    let newChildpartType = part.nodeInWhichChildPart(nextNode)
-                    if (newChildpartType !== childpartType) {
-                        part.getChildPart(childpartType).validIndexRanges.push([
-                            startIndex,
-                            index,
-                        ])
-                        startIndex = index
-                        childpartType = newChildpartType
-                    }
-                }
-                // 再判断该点与下一点的连线是否构成交点，如果是，则
+                // 判断该点与下一点的连线是否构成交点，如果是，则
                 // 1.找到该交点
                 // 2.标记该点为交点
                 // 3.判断下一点在哪个子区域内
-                //      * 原子区域的validIndexRanges增加[startIndex,index]的部分
+                //      * 原子区域的includingNodes增加[startIndex,index]的部分
                 //      * 重置startIndex,endIndex,childpartType
                 if (
                     (centerX - node.x) * (centerX - nextNode.x) < 0 ||
@@ -211,12 +195,17 @@ export class QuadTree {
                         nextNode,
                     })
                     part.intersectNodes.push(intersectNode)
-                    part.getChildPart(childpartType).validIndexRanges.push([
-                        startIndex,
-                        index,
-                    ])
+                    endNode = intersectNode
+                    part.getChildPart(childpartType).includingNodes.push(
+                        this.composeNodes(
+                            startNode,
+                            endNode,
+                            nodeList.slice(startIndex, index + 1)
+                        )
+                    )
                     startIndex = index + 1
                     childpartType = part.nodeInWhichChildPart(nextNode)
+                    startNode = intersectNode
                 }
             }
         )

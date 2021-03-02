@@ -45,6 +45,7 @@ export default {
       controls: null,
       frameGroup: null,
       hintGroup: null,
+      ptGroup: null,
       geom: null,
       mat: null,
       mesh: null,
@@ -64,6 +65,8 @@ export default {
     this.resetRenderer();
     this.controls = new MapControls(this.camera, this.renderer.domElement);
     this.controls.screenSpacePanning = false;
+
+    this.ptGroup = new THREE.Group();
 
     // <DEBUG> wireframe
     this.resetGroup();
@@ -131,12 +134,25 @@ export default {
         this.scene.remove(this.frameGroup);
       }
     },
+    showPt(show) {
+      if (show) {
+        this.scene.add(this.ptGroup);
+      } else {
+        this.scene.remove(this.ptGroup);
+      }
+    },
     minViewDis(dis) {
       this.updateGeom();
     },
   },
   computed: {
-    ...mapState(["showFrame", "showAxis", "showOriData", "minViewDis"]),
+    ...mapState([
+      "showFrame",
+      "showAxis",
+      "showOriData",
+      "showPt",
+      "minViewDis",
+    ]),
   },
   methods: {
     onViewChange() {
@@ -244,7 +260,7 @@ export default {
       );
       geom.applyMatrix4(mat4);
       let mesh = new THREE.Mesh(geom, mat);
-      this.scene.add(mesh);
+      this.ptGroup.add(mesh);
     },
     mapCoordType(coord, { minX, minY, maxX, maxY }) {
       return [

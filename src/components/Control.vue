@@ -14,6 +14,10 @@
         <a-switch @change="setShowOriData"></a-switch>
       </div>
       <div class="control-pannel-item">
+        <span>显示点</span>
+        <a-switch @change="setShowPt"></a-switch>
+      </div>
+      <div class="control-pannel-item">
         <span
           ><a-tooltip title="控制格网是否分类的因素，该因素越小，分裂程度越高">
             最小分裂距离</a-tooltip
@@ -181,7 +185,12 @@ export default {
     ...mapState(["showFrame", "showOriData", "minViewDis"]),
   },
   methods: {
-    ...mapMutations(["setShowFrame", "setShowOriData", "setMinViewDis"]),
+    ...mapMutations([
+      "setShowFrame",
+      "setShowOriData",
+      "setMinViewDis",
+      "setShowPt",
+    ]),
     getBtnTooltip(type) {
       const prefix = "向";
       const suffix = "旋转";
