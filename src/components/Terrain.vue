@@ -49,7 +49,9 @@ export default {
       geom: null,
       mat: null,
       mesh: null,
-      arrayedLine: null,
+      oriMesh: null,
+      oriMaterial: null,
+      quadtrees: [],
     };
   },
   mounted() {
@@ -72,14 +74,13 @@ export default {
     this.resetGroup();
 
     // <Main>
-    this.material = new THREE.LineBasicMaterial({
+    this.material = new THREE.MeshBasicMaterial({
       color: 0x0000ff,
     });
     this.oriMaterial = new THREE.LineBasicMaterial({
       color: 0xff0000,
     });
-    this.geom = new THREE.BufferGeometry();
-    this.oriGeom = new THREE.BufferGeometry();
+    this.oriMesh = new THREE.Group();
 
     // init stats
     const stats1 = new Stats();
@@ -141,7 +142,10 @@ export default {
         this.scene.remove(this.ptGroup);
       }
     },
-    minViewDis(dis) {
+    smooth() {
+      this.updateGeom();
+    },
+    minViewDis() {
       this.updateGeom();
     },
   },
@@ -152,6 +156,7 @@ export default {
       "showOriData",
       "showPt",
       "minViewDis",
+      "smooth",
     ]),
   },
   methods: {
@@ -173,21 +178,25 @@ export default {
       this.controls.update();
     },
     init({ data, minX, minY, maxX, maxY }) {
-      let points = data.map((pt) =>
-        this.mapCoordType(pt, { minX, minY, maxX, maxY })
-      );
-      this.oriGeom.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(
-          points.reduce((prev, curr) => {
-            return prev.concat([curr[0], 0, curr[1]]);
-          }, []),
-          3
-        )
-      );
-      this.oriMesh = new THREE.Line(this.oriGeom, this.oriMaterial);
-      this.rankedLine = new QuadTree(points);
-      points.map((pt) => this.drawPt(pt[0], pt[1]));
+      data.map((stroke) => {
+        let pts = stroke.map((pt) => {
+          return this.mapCoordType(pt, { minX, minY, maxX, maxY });
+        });
+        let geom = new THREE.BufferGeometry();
+        geom.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(
+            pts.reduce((prev, curr) => {
+              return prev.concat([curr[0], 0, curr[1]]);
+            }, []),
+            3
+          )
+        );
+        let mesh = new THREE.Line(geom, this.oriMaterial);
+        this.oriMesh.add(mesh);
+        this.quadtrees.push(new QuadTree(pts));
+        pts.map(this.drawPt.bind(this));
+      });
       this.updateGeom();
     },
     resetRenderer() {
@@ -248,7 +257,7 @@ export default {
       let mesh = new THREE.Line(geom, mat);
       this.frameGroup.add(mesh);
     },
-    drawPt(x, y) {
+    drawPt([x, y]) {
       let geom = new THREE.SphereBufferGeometry(0.005, 32, 32);
       let mat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
       let pos = [x, 0, y];
@@ -270,30 +279,57 @@ export default {
     },
     updateGeom() {
       this.resetGroup();
-      let points = null;
-      if (this.showFrame) {
-        points = this.rankedLine.traverse(
-          this.drawBound,
-          this.drawHint,
-          this.camera,
-          this.minViewDis
+      this.quadtrees.map((quadtree, index) => {
+        // 遍历四叉树，获取原始点
+        let points = null;
+        let quadtreeName = "quadtree" + index;
+        if (this.showFrame) {
+          points = quadtree.traverse(
+            this.drawBound,
+            this.drawHint,
+            this.camera,
+            this.minViewDis
+          );
+        } else {
+          points = quadtree.traverse(
+            () => {},
+            this.drawHint,
+            this.camera,
+            this.minViewDis
+          );
+        }
+        // 根据原始点获取未平滑/平滑后的曲线
+        if (this.smooth) {
+          // 获取平滑后的曲线
+          points = points.map((node) => {
+            return new THREE.Vector2(node.x, node.y);
+          });
+          let curve = new THREE.SplineCurve(points);
+          points = curve.getPoints(1000);
+          points = points.reduce((prev, curr) => {
+            return prev.concat([curr.x, 0, curr.y]);
+          }, []);
+        } else {
+          points = points.reduce((prev, curr) => {
+            return prev.concat([curr.x, curr.z, curr.y]);
+          }, []);
+        }
+
+        // 新建/更新数据
+        let mesh = null;
+        if (!this.scene.getObjectByName(quadtreeName)) {
+          let geom = new THREE.BufferGeometry();
+          mesh = new THREE.Line(geom, this.material);
+          mesh.name = quadtreeName
+          this.scene.add(mesh);
+        } else {
+          mesh = this.scene.getObjectByName(quadtreeName);
+        }
+        mesh.geometry.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(points, 3)
         );
-      } else {
-        points = this.rankedLine.traverse(
-          () => {},
-          this.drawHint,
-          this.camera,
-          this.minViewDis
-        );
-      }
-      this.geom.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(points, 3)
-      );
-      if (!this.mesh) {
-        this.mesh = new THREE.Line(this.geom, this.material);
-        this.scene.add(this.mesh);
-      }
+      });
     },
   },
 };

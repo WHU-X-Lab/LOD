@@ -286,9 +286,7 @@ export class QuadTree {
                         this._nodes[this._nodes.length - 1],
                     ])
                     .sort((a, b) => a.uuid - b.uuid)
-                    .reduce((prev, curr) => {
-                        return prev.concat([curr.x, curr.z, curr.y])
-                    }, [])
+                    
             }
 
             return res

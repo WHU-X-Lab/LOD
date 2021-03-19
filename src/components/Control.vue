@@ -18,6 +18,10 @@
         <a-switch @change="setShowPt"></a-switch>
       </div>
       <div class="control-pannel-item">
+        <span>平滑曲线</span>
+        <a-switch @change="setSmooth"></a-switch>
+      </div>
+      <div class="control-pannel-item">
         <span
           ><a-tooltip title="控制格网是否分类的因素，该因素越小，分裂程度越高">
             最小分裂距离</a-tooltip
@@ -81,7 +85,7 @@
           </a-tooltip>
         </div>
       </div>
-      <div class="control-pannel-item minimap">
+      <div v-if="false" class="control-pannel-item minimap">
         <div class="minimap-wrap">
           <div class="minimap-title">鹰眼图</div>
           <canvas id="minimap" width="100" height="100"></canvas>
@@ -190,6 +194,7 @@ export default {
       "setShowOriData",
       "setMinViewDis",
       "setShowPt",
+      "setSmooth",
     ]),
     getBtnTooltip(type) {
       const prefix = "向";

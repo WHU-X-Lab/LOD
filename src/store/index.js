@@ -9,6 +9,7 @@ export default new Vuex.Store({
         showFrame: true,
         showOriData: false,
         showPt: false,
+        smooth: false,
     },
     mutations: {
         setMinViewDis(state, minViewDis) {
@@ -22,6 +23,9 @@ export default new Vuex.Store({
         },
         setShowPt(state, showPt) {
             state.showPt = showPt
+        },
+        setSmooth(state, smooth) {
+            state.smooth = smooth
         },
     },
     actions: {},
