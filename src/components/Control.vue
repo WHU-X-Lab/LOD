@@ -85,14 +85,10 @@
           </a-tooltip>
         </div>
       </div>
-      <div v-if="false" class="control-pannel-item minimap">
+      <div class="control-pannel-item minimap">
         <div class="minimap-wrap">
           <div class="minimap-title">鹰眼图</div>
-          <canvas id="minimap" width="100" height="100"></canvas>
-          <div class="minimap-desc">
-            <div>黄色的锥体表示视锥体</div>
-            <div>蓝色的线表示目标区域</div>
-          </div>
+          <canvas id="minimap" width="400" height="400"></canvas>
         </div>
       </div>
     </div>
@@ -115,16 +111,12 @@ export default {
     return {
       pannelTitle: "控制面板",
       angle: 5,
+      frameGroup: new THREE.Group(),
     };
   },
   mounted() {
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(
-      45,
-      window.innerWidth / window.innerHeight,
-      0.01,
-      1000
-    );
+    this.camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
     this.camera.position.set(0, 2, 0);
     let canvas = document.getElementById("minimap");
     this.renderer = new THREE.WebGLRenderer({
@@ -160,9 +152,12 @@ export default {
     this.mesh = new THREE.Line(this.geom, this.mat);
     this.scene.add(this.mesh);
 
-    this.cameraPtGeom = new THREE.SphereBufferGeometry(0.1, 32, 32);
-    this.cameraPtMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    this.cameraPtMesh = null;
+    this.scene.add(this.frameGroup);
+
+    // this.cameraPtGeom = new THREE.SphereBufferGeometry(0.1, 32, 32);
+    // this.cameraPtMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    // this.cameraPtMesh = new THREE.Mesh(this.cameraPtGeom, this.cameraPtMat);
+    // this.scene.add(this.cameraPtMesh);
 
     // render
     this.renderer.setAnimationLoop(() => {
@@ -170,19 +165,21 @@ export default {
     });
 
     let that = this;
-    this.eventHandler.$on("viewChange", (camera) => {
-      let { position } = camera;
-      let pos = [position.x, 0, position.z];
-      let mat4 = new THREE.Matrix4();
-      mat4.compose(
-        new THREE.Vector3(...pos),
-        new THREE.Quaternion(),
-        new THREE.Vector3(1, 1, 1)
-      );
-      that.cameraPtGeom.applyMatrix4(mat4);
-      that.scene.remove(that.cameraPtMesh);
-      that.cameraPtMesh = new THREE.Mesh(that.cameraPtGeom, that.cameraPtMat);
-      that.scene.add(that.cameraPtMesh);
+    this.eventHandler.$on("viewChange", (quadtrees, camera) => {
+      that.resetGroup();
+      quadtrees.map((quadtree) => {
+        quadtree.traverse(that.drawBound, () => {}, camera, that.minViewDis);
+      });
+
+      // let { position } = camera;
+      // that.scene.remove(this.cameraPtMesh);
+      // let attr = new THREE.Float32BufferAttribute(
+      //   [position.x, 0, position.z],
+      //   3
+      // );
+      // that.cameraPtGeom.setAttribute("position", attr);
+      // that.cameraPtMesh = new THREE.Mesh(that.cameraPtGeom, that.cameraPtMat);
+      // that.scene.add(that.cameraPtMesh);
     });
   },
   computed: {
@@ -205,6 +202,38 @@ export default {
     },
     handleViewChange(type) {
       this.eventHandler.$emit("visionChange", type, this.angle);
+    },
+    drawBound(bound) {
+      let boundBuffer = [
+        bound[0],
+        0,
+        bound[1],
+        bound[0],
+        0,
+        bound[3],
+        bound[2],
+        0,
+        bound[3],
+        bound[2],
+        0,
+        bound[1],
+        bound[0],
+        0,
+        bound[1],
+      ];
+      let geom = new THREE.BufferGeometry();
+      let mat = new THREE.LineBasicMaterial({ color: 0x000000 }); // Black
+      geom.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(boundBuffer, 3)
+      );
+      let mesh = new THREE.Line(geom, mat);
+      this.frameGroup.add(mesh);
+    },
+    resetGroup() {
+      this.scene.remove(this.frameGroup);
+      this.frameGroup = new THREE.Group();
+      this.scene.add(this.frameGroup);
     },
   },
 };
@@ -264,6 +293,8 @@ export default {
         color: @blue;
       }
       #minimap {
+        width: 200px;
+        height: 200px;
         border: 1px solid @grey;
       }
     }

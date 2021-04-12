@@ -9,7 +9,7 @@ const parseData = () =>
         if (data.hasOwnProperty("features")) {
             /* GeoJSON To JSON */
             data.features.map((feature, index) => {
-                if (index === 10 || index === 11) {
+                if (index === 10) {
                     let res = []
                     feature.geometry.coordinates.map((coord) => {
                         if (coord[0] < minX) minX = coord[0]
@@ -18,14 +18,13 @@ const parseData = () =>
                         if (coord[1] > maxY) maxY = coord[1]
                         res.push(coord)
                     })
-                    if (index === 10) {
-                        res.push(
-                            data.features[11].geometry.coordinates[
-                                data.features[11].geometry.coordinates.length -
-                                    1
-                            ]
-                        )
-                    }
+                    // if (index === 10) {
+                    // res.push(
+                    //     data.features[11].geometry.coordinates[
+                    //         data.features[11].geometry.coordinates.length - 1
+                    //     ]
+                    // )
+                    // }
                     result.push(res)
                 }
             })

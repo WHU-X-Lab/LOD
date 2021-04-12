@@ -162,7 +162,7 @@ export default {
   methods: {
     onViewChange() {
       this.updateGeom();
-      this.eventHandler.$emit("viewChange", this.camera);
+      this.eventHandler.$emit("viewChange", this.quadtrees, this.camera);
     },
     handleVisionChange(type, angle) {
       const delta = ((2 * Math.PI) / 180) * angle;
@@ -320,7 +320,7 @@ export default {
         if (!this.scene.getObjectByName(quadtreeName)) {
           let geom = new THREE.BufferGeometry();
           mesh = new THREE.Line(geom, this.material);
-          mesh.name = quadtreeName
+          mesh.name = quadtreeName;
           this.scene.add(mesh);
         } else {
           mesh = this.scene.getObjectByName(quadtreeName);

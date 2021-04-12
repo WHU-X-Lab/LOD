@@ -221,6 +221,7 @@ export class QuadTree {
     findIntersectNode({ centerX, centerY, node, nextNode }) {
         let k = (nextNode.y - node.y) / (nextNode.x - node.x)
         let b = nextNode.y - k * nextNode.x
+
         if ((centerX - node.x) * (centerX - nextNode.x) < 0) {
             return new Node(
                 centerX,
@@ -229,7 +230,7 @@ export class QuadTree {
                 (node.uuid + nextNode.uuid) / 2
             )
         } else if ((centerY - node.y) * (centerY - nextNode.y) < 0) {
-            if (isNaN(k)) {
+            if (isNaN(k) || k === 0 || !isFinite(k)) {
                 return new Node(
                     node.x,
                     centerY,
@@ -286,7 +287,6 @@ export class QuadTree {
                         this._nodes[this._nodes.length - 1],
                     ])
                     .sort((a, b) => a.uuid - b.uuid)
-                    
             }
 
             return res
