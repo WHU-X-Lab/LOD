@@ -5,7 +5,7 @@ Vue.use(Vuex)
 
 export default new Vuex.Store({
     state: {
-        minViewDis: 0.001,
+        minViewDis: 10, // 0.001
         showFrame: true,
         showOriData: false,
         showPt: false,

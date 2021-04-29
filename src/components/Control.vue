@@ -5,10 +5,14 @@
       {{ pannelTitle }}
     </div>
     <div class="control-pannel">
+      <div class="control-pannel">
+        <a-button type="primary">上传数据</a-button>
+      </div>
       <div class="control-pannel-item">
         <span>显示Debug框架</span>
         <a-switch defaultChecked @change="setShowFrame"></a-switch>
       </div>
+
       <div class="control-pannel-item">
         <span>显示原数据</span>
         <a-switch @change="setShowOriData"></a-switch>
@@ -29,9 +33,9 @@
         </span>
         <a-input-number
           :min="0"
-          :max="0.1"
+          :max="100"
           :value="minViewDis"
-          :step="0.001"
+          :step="1"
           @change="setMinViewDis"
         ></a-input-number>
       </div>
@@ -44,7 +48,7 @@
           :step="1"
         ></a-input-number>
       </div>
-      <div class="control-pannel-item arrow-group">
+      <div v-show="false" class="control-pannel-item arrow-group">
         <div>视角控制</div>
         <div class="arrow-line">
           <a-tooltip :title="getBtnTooltip('top')" placement="top">
@@ -170,7 +174,6 @@ export default {
       quadtrees.map((quadtree) => {
         quadtree.traverse(that.drawBound, () => {}, camera, that.minViewDis);
       });
-
       // let { position } = camera;
       // that.scene.remove(this.cameraPtMesh);
       // let attr = new THREE.Float32BufferAttribute(

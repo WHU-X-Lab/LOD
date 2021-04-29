@@ -18,13 +18,6 @@ const parseData = () =>
                         if (coord[1] > maxY) maxY = coord[1]
                         res.push(coord)
                     })
-                    // if (index === 10) {
-                    // res.push(
-                    //     data.features[11].geometry.coordinates[
-                    //         data.features[11].geometry.coordinates.length - 1
-                    //     ]
-                    // )
-                    // }
                     result.push(res)
                 }
             })

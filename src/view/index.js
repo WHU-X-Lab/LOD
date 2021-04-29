@@ -93,6 +93,30 @@ class Part {
     }
 }
 
+function needSplit(part, minViewDis, camera) {
+    // const C = 1
+    // const pt1 = [-0.3, 0.2]
+    // const pt2 = [0.2, 0.2]
+    // const r1 = 0.5
+    // const r2 = 0.1
+    // const offsetX1 = part.centerX - pt1[0]
+    // const offsetY1 = part.centerY - pt1[1]
+    // const offsetX2 = part.centerX - pt2[0]
+    // const offsetY2 = part.centerY - pt2[1]
+    // const dis1 = Math.sqrt(offsetX1 * offsetX1 + offsetY1 * offsetY1)
+    // const dis2 = Math.sqrt(offsetX2 * offsetX2 + offsetY2 * offsetY2)
+    // const { farthestLine } = part
+    // if (!farthestLine) return false
+    // return getVecLength(...farthestLine) * ((C * r1) / dis1) > 0.01
+    const { position } = camera
+    const center = new THREE.Vector3(part.centerX, 0, part.centerY)
+    return (
+        Math.pow(10, center.distanceTo(position)) /
+            (part.bound[2] - part.bound[0]) <
+        minViewDis
+    )
+}
+
 export class QuadTree {
     constructor(nodesBuffer = []) {
         this._rootPart = new Part(0)
@@ -261,18 +285,7 @@ export class QuadTree {
             drawCb(part.bound)
 
             let res = part.intersectNodes
-            if (
-                part.farthestLine &&
-                calDisInScreen(
-                    part.farthestLine[0],
-                    part.farthestLine[1],
-                    part.farthestLine[2],
-                    part.farthestLine[3],
-                    camera
-                ) < minViewDis
-            ) {
-                // res = res
-            } else {
+            if (needSplit(part, minViewDis, camera)) {
                 childPartTypes.map((type) => {
                     part.childParts[type] &&
                         (res = res.concat(sub(part.childParts[type])))

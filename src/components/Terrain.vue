@@ -26,6 +26,9 @@ import Stats from "stats.js";
 import { getData } from "../data";
 import { QuadTree } from "../view";
 
+const hupo = require("../data/hupo");
+const hupo2 = require("../data/hupo2");
+
 export default {
   props: {
     eventHandler: {
@@ -197,6 +200,41 @@ export default {
         this.quadtrees.push(new QuadTree(pts));
         pts.map(this.drawPt.bind(this));
       });
+
+      // hupo.geometries.map((geom) => {
+      //   let pts = geom.coordinates;
+      //   let g = new THREE.BufferGeometry();
+      //   g.setAttribute(
+      //     "position",
+      //     new THREE.Float32BufferAttribute(
+      //       pts.reduce((prev, curr) => {
+      //         return prev.concat([curr[0], 0, curr[1]]);
+      //       })
+      //     ),
+      //     []
+      //   );
+      //   let mesh = new THREE.Line(g, this.oriMesh);
+      //   this.oriMesh.add(mesh);
+      //   this.quadtrees.push(new QuadTree(pts));
+      //   pts.map(this.drawPt.bind(this));
+      // });
+      // hupo2.geometries.map((geom) => {
+      //   let pts = geom.coordinates;
+      //   let g = new THREE.BufferGeometry();
+      //   g.setAttribute(
+      //     "position",
+      //     new THREE.Float32BufferAttribute(
+      //       pts.reduce((prev, curr) => {
+      //         return prev.concat([curr[0], 0, curr[1]]);
+      //       })
+      //     ),
+      //     []
+      //   );
+      //   let mesh = new THREE.Line(g, this.oriMesh);
+      //   this.oriMesh.add(mesh);
+      //   this.quadtrees.push(new QuadTree(pts));
+      //   pts.map(this.drawPt.bind(this));
+      // });
       this.updateGeom();
     },
     resetRenderer() {
