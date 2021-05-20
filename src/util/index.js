@@ -1,4 +1,4 @@
-import { Vector2, Vector3 } from "three"
+import { Vector2, Vector3, SplineCurve } from "three"
 
 const VIEW_RECT = [-1, 1, -1, 1]
 const VIEW_RECT_NODE = [
@@ -123,14 +123,34 @@ export function isSquareOutOfScreen(bound, camera) {
         isNodeOutOfScreen(pt3, camera) &&
         isNodeOutOfScreen(pt4, camera) &&
         !intersectBound([pt1, pt2, pt3, pt4])
-    if (
-        res &&
-        bound[0] === -0.5 &&
-        bound[1] === -0.5 &&
-        bound[2] === 0.5 &&
-        bound[3] === 0.5
-    ) {
-        // debugger
-    }
+
     return res
+}
+
+// 平滑曲线
+export function smooth(points) {
+    points = points.map((node) => {
+        return new Vector2(node.x, node.y)
+    })
+    let curve = new SplineCurve(points)
+    points = curve.getPoints(1000)
+    points = points.reduce((prev, curr) => {
+        return prev.concat([curr.x, 0, curr.y])
+    }, [])
+}
+
+// 加密矩形框
+export function addDensity(bound, num = 30) {
+    let result = []
+    for (let i = 0; i < bound.length - 1; i++) {
+        let start = bound[i]
+        let end = bound[i + 1]
+        let deltaX = (end.x - start.x) / num
+        let deltaY = (end.y - start.y) / num
+        for (let i = 0; i < num + 1; i++) {
+            result.push(new Vector2(start.x + i * deltaX, start.y + i * deltaY))
+        }
+    }
+
+    return result
 }

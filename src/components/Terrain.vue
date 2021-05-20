@@ -23,11 +23,13 @@ import * as THREE from "three";
 import { mapState } from "vuex";
 import { MapControls } from "three/examples/jsm/controls/OrbitControls.js";
 import Stats from "stats.js";
-import { getData } from "../data";
-import { QuadTree } from "../view";
+import getData from "../data";
+import { Quadtree, resources, transCoord } from "../view";
+import { addDensity } from "../util";
 
 const hupo = require("../data/hupo");
 const hupo2 = require("../data/hupo2");
+const quadtrees = [];
 
 export default {
   props: {
@@ -47,14 +49,12 @@ export default {
       renderer: null,
       controls: null,
       frameGroup: null,
-      hintGroup: null,
       ptGroup: null,
       geom: null,
       mat: null,
       mesh: null,
       oriMesh: null,
-      oriMaterial: null,
-      quadtrees: [],
+      distortMeshGroup: null,
     };
   },
   mounted() {
@@ -72,17 +72,12 @@ export default {
     this.controls.screenSpacePanning = false;
 
     this.ptGroup = new THREE.Group();
+    this.distortMeshGroup = new THREE.Group();
 
     // <DEBUG> wireframe
     this.resetGroup();
 
     // <Main>
-    this.material = new THREE.MeshBasicMaterial({
-      color: 0x0000ff,
-    });
-    this.oriMaterial = new THREE.LineBasicMaterial({
-      color: 0xff0000,
-    });
     this.oriMesh = new THREE.Group();
 
     // init stats
@@ -145,10 +140,31 @@ export default {
         this.scene.remove(this.ptGroup);
       }
     },
+    distort() {
+      this.updateGeom();
+    },
     smooth() {
       this.updateGeom();
     },
     minViewDis() {
+      this.updateGeom();
+    },
+    ss() {
+      this.updateGeom();
+    },
+    sl() {
+      this.updateGeom();
+    },
+    r0() {
+      this.updateGeom();
+    },
+    r1() {
+      this.updateGeom();
+    },
+    centerX() {
+      this.updateGeom();
+    },
+    centerY() {
       this.updateGeom();
     },
   },
@@ -158,14 +174,21 @@ export default {
       "showAxis",
       "showOriData",
       "showPt",
+      "distort",
       "minViewDis",
       "smooth",
+      "ss",
+      "sl",
+      "r1",
+      "r0",
+      "centerX",
+      "centerY",
     ]),
   },
   methods: {
     onViewChange() {
       this.updateGeom();
-      this.eventHandler.$emit("viewChange", this.quadtrees, this.camera);
+      this.eventHandler.$emit("viewChange", quadtrees, this.camera);
     },
     handleVisionChange(type, angle) {
       const delta = ((2 * Math.PI) / 180) * angle;
@@ -180,11 +203,8 @@ export default {
       }
       this.controls.update();
     },
-    init({ data, minX, minY, maxX, maxY }) {
-      data.map((stroke) => {
-        let pts = stroke.map((pt) => {
-          return this.mapCoordType(pt, { minX, minY, maxX, maxY });
-        });
+    init(data) {
+      data.map((pts) => {
         let geom = new THREE.BufferGeometry();
         geom.setAttribute(
           "position",
@@ -195,9 +215,9 @@ export default {
             3
           )
         );
-        let mesh = new THREE.Line(geom, this.oriMaterial);
+        let mesh = new THREE.Line(geom, resources.mat.oriLine);
         this.oriMesh.add(mesh);
-        this.quadtrees.push(new QuadTree(pts));
+        quadtrees.push(new Quadtree(pts));
         pts.map(this.drawPt.bind(this));
       });
 
@@ -235,7 +255,15 @@ export default {
       //   this.quadtrees.push(new QuadTree(pts));
       //   pts.map(this.drawPt.bind(this));
       // });
-      this.updateGeom();
+      // this.updateGeom();
+      quadtrees.map((quadtree) => {
+        quadtree.traverse(
+          this.drawBound,
+          this.transfer,
+          this.camera,
+          this.minViewDis
+        );
+      });
     },
     resetRenderer() {
       let canvas = document.getElementById("terrain");
@@ -252,52 +280,57 @@ export default {
       this.scene.remove(this.frameGroup);
       this.frameGroup = new THREE.Group();
       this.scene.add(this.frameGroup);
-      // 提示线/文字的Group Reset
-      this.scene.remove(this.hintGroup);
-      this.hintGroup = new THREE.Group();
-      this.scene.add(this.hintGroup);
     },
-    drawBound(bound) {
+    // 以委托的形式绘制格网，原因是方便统一管理全部的格网
+    drawBound(bound, deleteBound = false) {
+      let boundKey = JSON.stringify(bound);
+      let boundMesh = null;
+      // 如果动态渲染时需要删除格网
+      if (deleteBound) {
+        if (!(boundMesh = this.frameGroup.getObjectByName(boundKey))) {
+          // console.warn("被删除的格网并不存在");
+        } else {
+          this.frameGroup.remove(boundMesh);
+        }
+        return;
+      }
+      // 如果不删除，首先判断该格网是否存在，若存在，则直接pass
+      if (this.frameGroup.getObjectByName(boundKey)) {
+        return;
+      }
       let boundBuffer = [
-        bound[0],
-        0,
-        bound[1],
-        bound[0],
-        0,
-        bound[3],
-        bound[2],
-        0,
-        bound[3],
-        bound[2],
-        0,
-        bound[1],
-        bound[0],
-        0,
-        bound[1],
+        new THREE.Vector2(bound[0], bound[1]),
+        new THREE.Vector2(bound[0], bound[3]),
+        new THREE.Vector2(bound[2], bound[3]),
+        new THREE.Vector2(bound[2], bound[1]),
+        new THREE.Vector2(bound[0], bound[1]),
       ];
+      let curve = addDensity(boundBuffer);
+      let { ss, sl, r0, r1, centerX, centerY } = this;
+      if (this.distort) {
+        curve = curve.reduce((prev, curr) => {
+          let { x, y } = transCoord(
+            { x: curr.x, y: curr.y },
+            { ss, sl, r0, r1, centerX, centerY }
+          );
+          return prev.concat([x, 0, y]);
+        }, []);
+      } else {
+        curve = curve.reduce((prev, curr) => {
+          return prev.concat([curr.x, 0, curr.y]);
+        }, []);
+      }
+
       let geom = new THREE.BufferGeometry();
-      let mat = new THREE.LineBasicMaterial({ color: 0x000000 }); // Black
-      geom.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(boundBuffer, 3)
-      );
-      let mesh = new THREE.Line(geom, mat);
-      this.frameGroup.add(mesh);
-    },
-    drawHint(x1, y1, x2, y2) {
-      let hintBuffer = [x1, 0, y1, x2, 0, y2];
-      let geom = new THREE.BufferGeometry();
-      let mat = new THREE.LineBasicMaterial({ color: 0x8e44ad }); // Green
-      geom.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(hintBuffer, 3)
-      );
-      let mesh = new THREE.Line(geom, mat);
-      this.frameGroup.add(mesh);
+      let mat = resources.mat.grid;
+      geom.setAttribute("position", new THREE.Float32BufferAttribute(curve, 3));
+      boundMesh = new THREE.Line(geom, mat);
+      boundMesh.name = boundKey;
+      this.frameGroup.add(boundMesh);
     },
     drawPt([x, y]) {
-      let geom = new THREE.SphereBufferGeometry(0.005, 32, 32);
-      let mat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      let geom = resources.geom.point;
+      let mat = resources.mat.point;
       let pos = [x, 0, y];
       let mat4 = new THREE.Matrix4();
       mat4.compose(
@@ -309,55 +342,47 @@ export default {
       let mesh = new THREE.Mesh(geom, mat);
       this.ptGroup.add(mesh);
     },
-    mapCoordType(coord, { minX, minY, maxX, maxY }) {
-      return [
-        (coord[0] - minX) / (maxX - minX) - 0.5,
-        1 - (coord[1] - minY) / (maxY - minY) - 0.5,
-      ];
+    transfer(node) {
+      if (this.distort) {
+        let { ss, sl, r0, r1, centerX, centerY } = this;
+        return transCoord(
+          { x: node.x, y: node.y },
+          { ss, sl, r0, r1, centerX, centerY }
+        );
+      } else {
+        return node;
+      }
     },
     updateGeom() {
       this.resetGroup();
-      this.quadtrees.map((quadtree, index) => {
+      // quadtrees.map((quadtree) => {
+      //   quadtree.dynamicModify(this.drawBound, this.camera, this.minViewDis);
+      // });
+      quadtrees.map((quadtree, index) => {
         // 遍历四叉树，获取原始点
         let points = null;
         let quadtreeName = "quadtree" + index;
         if (this.showFrame) {
           points = quadtree.traverse(
             this.drawBound,
-            this.drawHint,
+            this.transfer,
             this.camera,
             this.minViewDis
           );
         } else {
           points = quadtree.traverse(
             () => {},
-            this.drawHint,
+            this.transfer,
             this.camera,
             this.minViewDis
           );
-        }
-        // 根据原始点获取未平滑/平滑后的曲线
-        if (this.smooth) {
-          // 获取平滑后的曲线
-          points = points.map((node) => {
-            return new THREE.Vector2(node.x, node.y);
-          });
-          let curve = new THREE.SplineCurve(points);
-          points = curve.getPoints(1000);
-          points = points.reduce((prev, curr) => {
-            return prev.concat([curr.x, 0, curr.y]);
-          }, []);
-        } else {
-          points = points.reduce((prev, curr) => {
-            return prev.concat([curr.x, curr.z, curr.y]);
-          }, []);
         }
 
         // 新建/更新数据
         let mesh = null;
         if (!this.scene.getObjectByName(quadtreeName)) {
           let geom = new THREE.BufferGeometry();
-          mesh = new THREE.Line(geom, this.material);
+          mesh = new THREE.Line(geom, resources.mat.line);
           mesh.name = quadtreeName;
           this.scene.add(mesh);
         } else {

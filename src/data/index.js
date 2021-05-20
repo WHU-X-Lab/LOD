@@ -1,69 +1,26 @@
-let data = require("./river.json")
+const data = require("./data2.json")
 let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
 
-const setData = (d) => (data = d)
-
-const parseData = () =>
-    new Promise((resolve) => {
-        let result = []
-        if (data.hasOwnProperty("features")) {
-            /* GeoJSON To JSON */
-            data.features.map((feature, index) => {
-                if (index === 10) {
-                    let res = []
-                    feature.geometry.coordinates.map((coord) => {
-                        if (coord[0] < minX) minX = coord[0]
-                        if (coord[0] > maxX) maxX = coord[0]
-                        if (coord[1] < minY) minY = coord[1]
-                        if (coord[1] > maxY) maxY = coord[1]
-                        res.push(coord)
-                    })
-                    result.push(res)
-                }
-            })
-            resolve(result)
-        } else {
-            /* Img To Array */
-            let url = data.files[0]
-            let img = document.createElement("img")
-            img.src = window.URL.createObjectURL(url)
-            let canvas = document.createElement("canvas")
-            let ctx = canvas.getContext("2d")
-
-            img.onload = ({ target }) => {
-                let { width, height } = target
-                canvas.width = width
-                canvas.height = height
-                ctx.drawImage(target, 0, 0)
-                let { data } = ctx.getImageData(0, 0, width, height)
-                minX = 0
-                minY = 0
-                maxX = width
-                maxY = height
-                for (let i = 0; i < data.length; i += 4) {
-                    let x = (i / 4) % width
-                    let y = Math.floor(i / 4 / width)
-                    let z = (10 * data[i]) / 255
-                    result.push([x, y, z])
-                }
-                resolve(result)
-            }
-        }
-    })
-
-const getData = (d = null) => {
-    if (d !== null) setData(d)
-    return new Promise((resolve) => {
-        parseData().then((data) => {
-            resolve({
-                data,
-                minX,
-                minY,
-                maxX,
-                maxY,
-            })
+export default function getData() {
+    const result = []
+    // 遍历数据，找到最大最小值
+    data.geometries.map((feature) => {
+        feature.coordinates.map((coord) => {
+            if (coord[0] < minX) minX = coord[0]
+            if (coord[0] > maxX) maxX = coord[0]
+            if (coord[1] < minY) minY = coord[1]
+            if (coord[1] > maxY) maxY = coord[1]
         })
     })
+    const scale = 0.8 / Math.max(maxX - minX, maxY - minY)
+    data.geometries.map((feature) => {
+        let res = []
+        feature.coordinates.map((coord) => {
+            let x = (coord[0] - minX) * scale - 0.4
+            let y = (coord[1] - minY) * scale - 0.2
+            res.push([x, y])
+        })
+        result.push(res)
+    })
+    return Promise.resolve(result)
 }
-
-export { getData }

@@ -26,6 +26,10 @@
         <a-switch @change="setSmooth"></a-switch>
       </div>
       <div class="control-pannel-item">
+        <span>是否变形</span>
+        <a-switch :value="distort" @change="setDistort"></a-switch>
+      </div>
+      <div class="control-pannel-item">
         <span
           ><a-tooltip title="控制格网是否分类的因素，该因素越小，分裂程度越高">
             最小分裂距离</a-tooltip
@@ -33,9 +37,9 @@
         </span>
         <a-input-number
           :min="0"
-          :max="100"
+          :max="1"
           :value="minViewDis"
-          :step="1"
+          :step="0.001"
           @change="setMinViewDis"
         ></a-input-number>
       </div>
@@ -46,6 +50,66 @@
           :max="20"
           v-model="angle"
           :step="1"
+        ></a-input-number>
+      </div>
+      <div class="control-pannel-item">
+        <span>ss</span>
+        <a-input-number
+          :min="1"
+          :max="10"
+          :value="ss"
+          :step="1"
+          @change="setSS"
+        ></a-input-number>
+      </div>
+      <div class="control-pannel-item">
+        <span>sl</span>
+        <a-input-number
+          :min="1"
+          :max="10"
+          :value="sl"
+          :step="1"
+          @change="setSL"
+        ></a-input-number>
+      </div>
+      <div class="control-pannel-item">
+        <span>r0</span>
+        <a-input-number
+          :min="0"
+          :max="1"
+          :value="r0"
+          :step="0.1"
+          @change="setR0"
+        ></a-input-number>
+      </div>
+      <div class="control-pannel-item">
+        <span>r1</span>
+        <a-input-number
+          :min="0"
+          :max="1"
+          :value="r1"
+          :step="0.1"
+          @change="setR1"
+        ></a-input-number>
+      </div>
+      <div class="control-pannel-item">
+        <span>centerX</span>
+        <a-input-number
+          :min="-1"
+          :max="1"
+          :value="centerX"
+          :step="0.1"
+          @change="setCenterX"
+        ></a-input-number>
+      </div>
+      <div class="control-pannel-item">
+        <span>centerY</span>
+        <a-input-number
+          :min="-1"
+          :max="1"
+          :value="centerY"
+          :step="0.1"
+          @change="setCenterY"
         ></a-input-number>
       </div>
       <div v-show="false" class="control-pannel-item arrow-group">
@@ -171,9 +235,9 @@ export default {
     let that = this;
     this.eventHandler.$on("viewChange", (quadtrees, camera) => {
       that.resetGroup();
-      quadtrees.map((quadtree) => {
-        quadtree.traverse(that.drawBound, () => {}, camera, that.minViewDis);
-      });
+      // quadtrees.map((quadtree) => {
+      //   quadtree.traverse(that.drawBound, () => {}, camera, that.minViewDis);
+      // });
       // let { position } = camera;
       // that.scene.remove(this.cameraPtMesh);
       // let attr = new THREE.Float32BufferAttribute(
@@ -186,15 +250,33 @@ export default {
     });
   },
   computed: {
-    ...mapState(["showFrame", "showOriData", "minViewDis"]),
+    ...mapState([
+      "showFrame",
+      "showOriData",
+      "distort",
+      "minViewDis",
+      "ss",
+      "sl",
+      "r0",
+      "r1",
+      "centerX",
+      "centerY",
+    ]),
   },
   methods: {
     ...mapMutations([
       "setShowFrame",
       "setShowOriData",
+      "setDistort",
       "setMinViewDis",
       "setShowPt",
       "setSmooth",
+      "setSS",
+      "setSL",
+      "setR0",
+      "setR1",
+      "setCenterX",
+      "setCenterY",
     ]),
     getBtnTooltip(type) {
       const prefix = "向";
@@ -248,6 +330,7 @@ export default {
 @grey: #eee;
 
 .control {
+  overflow: scroll;
   &-title {
     img {
       width: 30px;
