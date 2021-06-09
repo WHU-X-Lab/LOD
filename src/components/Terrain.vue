@@ -27,9 +27,7 @@ import getData from "../data";
 import { Quadtree, resources, transCoord } from "../view";
 import { addDensity } from "../util";
 
-const hupo = require("../data/hupo");
-const hupo2 = require("../data/hupo2");
-const quadtrees = [];
+let quadtrees = [];
 
 export default {
   props: {
@@ -113,10 +111,11 @@ export default {
     // 监听视角变化属性
     this.eventHandler.$on("visionChange", this.handleVisionChange.bind(this));
 
+    // 监听数据源的变化
+    this.eventHandler.$on("dataChange", this.init.bind(this));
+
     // init
-    getData().then(this.init, (err) => {
-      throw err;
-    });
+    this.init("data");
   },
   watch: {
     showOriData(show) {
@@ -203,67 +202,44 @@ export default {
       }
       this.controls.update();
     },
-    init(data) {
-      data.map((pts) => {
-        let geom = new THREE.BufferGeometry();
-        geom.setAttribute(
-          "position",
-          new THREE.Float32BufferAttribute(
-            pts.reduce((prev, curr) => {
-              return prev.concat([curr[0], 0, curr[1]]);
-            }, []),
-            3
-          )
-        );
-        let mesh = new THREE.Line(geom, resources.mat.oriLine);
-        this.oriMesh.add(mesh);
-        quadtrees.push(new Quadtree(pts));
-        pts.map(this.drawPt.bind(this));
-      });
+    init(dataSource) {
+      getData(dataSource).then(
+        (data) => {
+          // 清除掉之前的数据
+          this.scene.clear();
+          this.oriMesh.clear();
+          quadtrees = [];
+          // 对当前数据源数据进行初始化
+          data.map((pts) => {
+            let geom = new THREE.BufferGeometry();
+            geom.setAttribute(
+              "position",
+              new THREE.Float32BufferAttribute(
+                pts.reduce((prev, curr) => {
+                  return prev.concat([curr[0], 0, curr[1]]);
+                }, []),
+                3
+              )
+            );
+            let mesh = new THREE.Line(geom, resources.mat.oriLine);
+            this.oriMesh.add(mesh);
+            quadtrees.push(new Quadtree(pts));
+            pts.map(this.drawPt.bind(this));
+          });
 
-      // hupo.geometries.map((geom) => {
-      //   let pts = geom.coordinates;
-      //   let g = new THREE.BufferGeometry();
-      //   g.setAttribute(
-      //     "position",
-      //     new THREE.Float32BufferAttribute(
-      //       pts.reduce((prev, curr) => {
-      //         return prev.concat([curr[0], 0, curr[1]]);
-      //       })
-      //     ),
-      //     []
-      //   );
-      //   let mesh = new THREE.Line(g, this.oriMesh);
-      //   this.oriMesh.add(mesh);
-      //   this.quadtrees.push(new QuadTree(pts));
-      //   pts.map(this.drawPt.bind(this));
-      // });
-      // hupo2.geometries.map((geom) => {
-      //   let pts = geom.coordinates;
-      //   let g = new THREE.BufferGeometry();
-      //   g.setAttribute(
-      //     "position",
-      //     new THREE.Float32BufferAttribute(
-      //       pts.reduce((prev, curr) => {
-      //         return prev.concat([curr[0], 0, curr[1]]);
-      //       })
-      //     ),
-      //     []
-      //   );
-      //   let mesh = new THREE.Line(g, this.oriMesh);
-      //   this.oriMesh.add(mesh);
-      //   this.quadtrees.push(new QuadTree(pts));
-      //   pts.map(this.drawPt.bind(this));
-      // });
-      // this.updateGeom();
-      quadtrees.map((quadtree) => {
-        quadtree.traverse(
-          this.drawBound,
-          this.transfer,
-          this.camera,
-          this.minViewDis
-        );
-      });
+          quadtrees.map((quadtree) => {
+            quadtree.traverse(
+              this.drawBound,
+              this.transfer,
+              this.camera,
+              this.minViewDis
+            );
+          });
+        },
+        (err) => {
+          throw err;
+        }
+      );
     },
     resetRenderer() {
       let canvas = document.getElementById("terrain");
@@ -305,9 +281,10 @@ export default {
         new THREE.Vector2(bound[2], bound[1]),
         new THREE.Vector2(bound[0], bound[1]),
       ];
-      let curve = addDensity(boundBuffer);
+      let curve = boundBuffer;
       let { ss, sl, r0, r1, centerX, centerY } = this;
       if (this.distort) {
+        curve = addDensity(boundBuffer);
         curve = curve.reduce((prev, curr) => {
           let { x, y } = transCoord(
             { x: curr.x, y: curr.y },
@@ -355,9 +332,6 @@ export default {
     },
     updateGeom() {
       this.resetGroup();
-      // quadtrees.map((quadtree) => {
-      //   quadtree.dynamicModify(this.drawBound, this.camera, this.minViewDis);
-      // });
       quadtrees.map((quadtree, index) => {
         // 遍历四叉树，获取原始点
         let points = null;

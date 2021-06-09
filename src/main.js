@@ -8,6 +8,7 @@ import {
     Slider,
     InputNumber,
     Tooltip,
+    Select,
 } from "ant-design-vue"
 
 Vue.use(Button)
@@ -16,6 +17,7 @@ Vue.use(Divider)
 Vue.use(Slider)
 Vue.use(InputNumber)
 Vue.use(Tooltip)
+Vue.use(Select)
 
 Vue.config.productionTip = false
 

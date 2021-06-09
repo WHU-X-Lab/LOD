@@ -154,3 +154,14 @@ export function addDensity(bound, num = 30) {
 
     return result
 }
+
+// 将首尾两个点和中间的点列组合起来
+export function composeNodes(startNode, endNode, nodes) {
+    if (startNode) {
+        nodes.unshift(startNode)
+    }
+    if (endNode) {
+        nodes.push(endNode)
+    }
+    return nodes
+}

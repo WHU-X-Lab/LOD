@@ -11,28 +11,23 @@ import {
     getDropFoot,
     getVecLength,
     isSquareOutOfScreen,
+    composeNodes,
 } from "../util"
 
 import Node from "./node"
 import Part from "./part"
 import Queue from "./queue"
 
+// 判断当前格网是否需要分裂
 function needSplit(part, minViewDis, camera, transfer) {
     const { farthestLine } = part
     if (!farthestLine) return false
     let pt1 = transfer({ x: farthestLine[0], y: farthestLine[1] })
     let pt2 = transfer({ x: farthestLine[2], y: farthestLine[3] })
     return calDisInScreen(pt1.x, pt1.y, pt2.x, pt2.y, camera) > minViewDis
-    // const { position } = camera
-    // const center = new THREE.Vector3(part.centerX, 0, part.centerY)
-
-    // return (
-    //     Math.pow(10, center.distanceTo(position)) /
-    //         (part.bound[2] - part.bound[0]) <
-    //     minViewDis
-    // )
 }
 
+// 判断当前格网是否需要分裂（缓存版）
 function cachedNeedSplit(cache, part, minViewDis, camera) {
     const cacheKey = JSON.stringify(part.bound) + String(minViewDis)
     if (cache[cacheKey]) {
@@ -41,6 +36,7 @@ function cachedNeedSplit(cache, part, minViewDis, camera) {
     return (cache[cacheKey] = needSplit(part, minViewDis, camera))
 }
 
+// 定义四叉树类
 export default class Quadtree {
     constructor(nodesBuffer = []) {
         this._rootPart = new Part(0)
@@ -60,6 +56,7 @@ export default class Quadtree {
             this._nodes.push(new Node(node[0], node[1], 0, this._uuid++))
         })
     }
+    // 遍历一个格网内的全部节点
     traverseValidNodes(nodeLists, cb) {
         nodeLists.map((nodeList, i) => {
             nodeList.map((node, index) => {
@@ -74,17 +71,10 @@ export default class Quadtree {
             })
         })
     }
-    composeNodes(startNode, endNode, nodes) {
-        if (startNode) {
-            nodes.unshift(startNode)
-        }
-        if (endNode) {
-            nodes.push(endNode)
-        }
-        return nodes
-    }
-    // 1.找到线数据与全部层级的交点
-    // 2.找到每一层最远的点对，并且存储下来
+
+    // 1.找到原始曲线与全部层级的交点
+    // 2.找到每一层最远的点对，并且存储为当前格网的farthestLine
+    //   注意：一个格网内可能曲线会分为不连续的多段，这个时候farthestLine取多段中最远的即可
     findAllIntersectNodes(part) {
         if (part.level > MAX_LEVEL) return
         let [startIndex, childpartType] = [
@@ -95,15 +85,16 @@ export default class Quadtree {
         let { centerX, centerY } = part
         let maxDis = -Infinity
         let maxDisNodes = []
+        // traverseValidNodes方法是用来处理同一个区域内曲线不连续的情况
         this.traverseValidNodes(
             part.includingNodes,
             ({ node, index, nodeList, nextNode }) => {
                 if (index === 0) startIndex = 0
-                // 如果是最后的点，则直接进行子区域判断
+                // 如果是当前点是最后的点，则直接进行子区域判断
                 if (!nextNode) {
                     endNode = null
                     part.getChildPart(childpartType).includingNodes.push(
-                        this.composeNodes(
+                        composeNodes(
                             startNode,
                             endNode,
                             nodeList.slice(startIndex)
@@ -131,7 +122,7 @@ export default class Quadtree {
                 // 1.找到该交点
                 // 2.标记该点为交点
                 // 3.判断下一点在哪个子区域内
-                //      * 原子区域的includingNodes增加[startIndex,index]的部分
+                //      * 原来子区域的includingNodes增加[startIndex,index]的部分
                 //      * 重置startIndex,endIndex,childpartType
                 if (
                     (centerX - node.x) * (centerX - nextNode.x) < 0 ||
@@ -146,7 +137,7 @@ export default class Quadtree {
                     part.intersectNodes.push(intersectNode)
                     endNode = intersectNode
                     part.getChildPart(childpartType).includingNodes.push(
-                        this.composeNodes(
+                        composeNodes(
                             startNode,
                             endNode,
                             nodeList.slice(startIndex, index + 1)
@@ -167,6 +158,7 @@ export default class Quadtree {
             }
         })
     }
+    // 求出node和nextNode连线和当前格网的交点
     findIntersectNode({ centerX, centerY, node, nextNode }) {
         let k = (nextNode.y - node.y) / (nextNode.x - node.x)
         let b = nextNode.y - k * nextNode.x
@@ -198,11 +190,11 @@ export default class Quadtree {
             throw "计算交点时发生错误"
         }
     }
-    // 用于遍历整个四叉树
+    // 遍历整个四叉树
     traverse(drawCb, transfer, camera, minViewDis) {
         return sub.call(this, this._rootPart)
         function sub(part) {
-            // 如果整个边界都处于视野外，则没有必要计算和渲染
+            // 如果整个边界都处于视野外，则没有必要计算和渲染<视域剔除>
             if (isSquareOutOfScreen(part.bound, camera)) {
                 // this.unsplittedNodesQueue.enqueue(part)
                 return []
@@ -221,7 +213,14 @@ export default class Quadtree {
                 // this.unsplittedNodesQueue.enqueue(part)
             }
 
-            // 最后输出的结果需要排序并且组织成buffer的形式
+            /**
+             * 遍历的结果需要合并，合并在level为0也就是最大的格网里，并且输出
+             * 1.concat是为了将曲线的首尾两个端点和遍历的结果合在一起
+             * 2.sort是为了让最终输出的结果还是按照原始曲线的形式进行排序
+             * 3.reduce是为了将排序后的点对组织成buffer的形式，方便threejs里赋值。
+             *   不理解这一步的话可以在控制台里查看没有reduce和reduce之后结果对比
+             */
+
             if (part.level === 0) {
                 res = res
                     .concat([

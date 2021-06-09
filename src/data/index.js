@@ -1,8 +1,7 @@
-const data = require("./data2.json")
-let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
-
-export default function getData() {
+export default function getData(dataSource) {
+    const data = require("./" + dataSource + ".json")
     const result = []
+    let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity]
     // 遍历数据，找到最大最小值
     data.geometries.map((feature) => {
         feature.coordinates.map((coord) => {
@@ -12,6 +11,7 @@ export default function getData() {
             if (coord[1] > maxY) maxY = coord[1]
         })
     })
+    // 将数据归一化
     const scale = 0.8 / Math.max(maxX - minX, maxY - minY)
     data.geometries.map((feature) => {
         let res = []

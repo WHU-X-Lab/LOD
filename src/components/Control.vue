@@ -5,8 +5,15 @@
       {{ pannelTitle }}
     </div>
     <div class="control-pannel">
-      <div class="control-pannel">
-        <a-button type="primary">上传数据</a-button>
+      <div class="control-pannel-item">
+        <span>数据源</span>
+        <a-select default-value="data" @change="handleDataChange">
+          <a-select-option value="data">data.json</a-select-option>
+          <a-select-option value="data0">data0.json</a-select-option>
+          <a-select-option value="data2">data2.json</a-select-option>
+          <a-select-option value="data3">data3.json</a-select-option>
+          <a-select-option value="data4">data4.json</a-select-option>
+        </a-select>
       </div>
       <div class="control-pannel-item">
         <span>显示Debug框架</span>
@@ -232,6 +239,7 @@ export default {
       this.renderer.render(this.scene, this.camera);
     });
 
+    // 鹰眼图中的格网变化（效率较慢，故开发时将下列代码注释，需要用到该功能时可取消注释）
     let that = this;
     this.eventHandler.$on("viewChange", (quadtrees, camera) => {
       that.resetGroup();
@@ -287,6 +295,9 @@ export default {
     },
     handleViewChange(type) {
       this.eventHandler.$emit("visionChange", type, this.angle);
+    },
+    handleDataChange(data) {
+      this.eventHandler.$emit("dataChange", data);
     },
     drawBound(bound) {
       let boundBuffer = [
